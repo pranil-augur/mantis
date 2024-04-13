@@ -260,10 +260,14 @@ func (p *Parser) loadTestFiles(basePath string, paths []string) (map[string]*Tes
 func fileExt(path string) string {
 	if strings.HasSuffix(path, ".tf") {
 		return ".tf"
+	} else if strings.HasSuffix(path, ".tf.cue") {
+		return ".tf.cue"
 	} else if strings.HasSuffix(path, ".tf.json") {
 		return ".tf.json"
 	} else if strings.HasSuffix(path, ".tftest.hcl") {
 		return ".tftest.hcl"
+	} else if strings.HasSuffix(path, ".tftest.cue") {
+		return ".tftest.cue"
 	} else if strings.HasSuffix(path, ".tftest.json") {
 		return ".tftest.json"
 	} else {

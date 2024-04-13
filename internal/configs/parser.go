@@ -75,6 +75,8 @@ func (p *Parser) LoadHCLFile(path string) (hcl.Body, hcl.Diagnostics) {
 			},
 		}
 	}
+	fmt.Println("Source file content:")
+	fmt.Println(string(src))
 
 	var file *hcl.File
 	var diags hcl.Diagnostics
@@ -93,6 +95,14 @@ func (p *Parser) LoadHCLFile(path string) (hcl.Body, hcl.Diagnostics) {
 		return hcl.EmptyBody(), diags
 	}
 
+	return file.Body, diags
+}
+
+func (p *Parser) LoadCUEFileWrapper(path string) (hcl.Body, hcl.Diagnostics) {
+	file, diags := p.LoadCUEFile(path)
+	if file == nil {
+		return hcl.EmptyBody(), diags
+	}
 	return file.Body, diags
 }
 
