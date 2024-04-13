@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"strings"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/load"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/spf13/afero"
@@ -22,6 +25,7 @@ import (
 type Parser struct {
 	fs afero.Afero
 	p  *hclparse.Parser
+	c  *cue.Context
 
 	// allowExperiments controls whether we will allow modules to opt in to
 	// experimental language features. In main code this will be set only
@@ -42,6 +46,7 @@ func NewParser(fs afero.Fs) *Parser {
 	return &Parser{
 		fs: afero.Afero{Fs: fs},
 		p:  hclparse.NewParser(),
+		c:  cuecontext.New(),
 	}
 }
 
@@ -76,6 +81,8 @@ func (p *Parser) LoadHCLFile(path string) (hcl.Body, hcl.Diagnostics) {
 	switch {
 	case strings.HasSuffix(path, ".json"):
 		file, diags = p.p.ParseJSON(src, path)
+	case strings.HasSuffix(path, ".cue"):
+		file, diags = p.LoadCUEFile(path)
 	default:
 		file, diags = p.p.ParseHCL(src, path)
 	}
@@ -87,6 +94,64 @@ func (p *Parser) LoadHCLFile(path string) (hcl.Body, hcl.Diagnostics) {
 	}
 
 	return file.Body, diags
+}
+
+func (p *Parser) LoadCUEFile(path string) (*hcl.File, hcl.Diagnostics) {
+	// Read the CUE file and create an instance
+	_, err := p.fs.ReadFile(path)
+	if err != nil {
+		return &hcl.File{}, hcl.Diagnostics{
+			{
+				Severity: hcl.DiagError,
+				Summary:  "Failed to read file",
+				Detail:   fmt.Sprintf("The file %q could not be read.", path),
+			},
+		}
+	}
+
+	// Create an instance from the CUE file
+	buildInstances := load.Instances([]string{path}, nil)
+	if len(buildInstances) == 0 || buildInstances[0].Err != nil {
+		return &hcl.File{}, hcl.Diagnostics{
+			{
+				Severity: hcl.DiagError,
+				Summary:  "Failed to load CUE file",
+				Detail:   fmt.Sprintf("Error parsing CUE file: %v", buildInstances[0].Err),
+			},
+		}
+	}
+
+	instance := p.c.BuildInstance(buildInstances[0])
+	if instance.Err() != nil {
+		return &hcl.File{}, hcl.Diagnostics{
+			{
+				Severity: hcl.DiagError,
+				Summary:  "Failed to build CUE instance",
+				Detail:   fmt.Sprintf("Error building CUE instance: %v", instance.Err()),
+			},
+		}
+	}
+
+	// Convert the CUE instance to JSON
+	jsonBytes, err := instance.MarshalJSON()
+	if err != nil {
+		return &hcl.File{}, hcl.Diagnostics{
+			{
+				Severity: hcl.DiagError,
+				Summary:  "Failed to convert CUE to JSON",
+				Detail:   fmt.Sprintf("Error marshalling CUE to JSON: %v", err),
+			},
+		}
+	}
+
+	// Parse the JSON bytes using the HCL parser to get an hcl.File
+	file, diags := p.p.ParseJSON(jsonBytes, path)
+	if diags.HasErrors() {
+		return &hcl.File{}, diags
+	}
+
+	// Return the Body of the parsed file, which is of type hcl.Body
+	return file, nil
 }
 
 // Sources returns a map of the cached source buffers for all files that

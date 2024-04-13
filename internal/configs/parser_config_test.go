@@ -90,6 +90,57 @@ func TestParserLoadConfigFileFailure(t *testing.T) {
 	}
 }
 
+// TestLoadCUEFileSuccess tests successful loading and conversion of a CUE file to hcl.Body
+func TestLoadCUEFileSuccess(t *testing.T) {
+	parser := NewParser(nil) // Using the OS filesystem for simplicity
+
+	// Adjust the path according to where you place your test CUE files
+	body, diags := parser.LoadCUEFile("testdata/cue-files/valid.cue")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+	if body == nil {
+		t.Fatalf("expected non-nil body")
+	}
+}
+
+// TestLoadCUEFileFailure tests loading of an invalid CUE file to ensure it fails as expected
+func TestLoadCUEFileFailure(t *testing.T) {
+	parser := NewParser(nil) // Using the OS filesystem for simplicity
+
+	// Adjust the path according to where you place your test CUE files
+	_, diags := parser.LoadCUEFile("testdata/cue-files/invalid.cue")
+	if !diags.HasErrors() {
+		t.Fatalf("expected diagnostics to indicate failure")
+	}
+}
+
+// TestLoadComplexCUEFileResource tests loading and conversion of a complex CUE file representing a Terraform resource
+func TestLoadComplexCUEFileResource(t *testing.T) {
+	parser := NewParser(nil) // Using the OS filesystem for simplicity
+
+	body, diags := parser.LoadCUEFile("testdata/cue-files/complex_resource.cue")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+	if body == nil {
+		t.Fatalf("expected non-nil body for complex resource")
+	}
+}
+
+// TestLoadComplexCUEFileVariable tests loading and conversion of a complex CUE file representing a Terraform variable
+func TestLoadComplexCUEFileVariable(t *testing.T) {
+	parser := NewParser(nil) // Using the OS filesystem for simplicity
+
+	body, diags := parser.LoadCUEFile("testdata/cue-files/variable_definition.cue")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+	if body == nil {
+		t.Fatalf("expected non-nil body for variable definition")
+	}
+}
+
 // This test uses a subset of the same fixture files as
 // TestParserLoadConfigFileFailure, but additionally verifies that each
 // file produces the expected diagnostic summary.
