@@ -7,6 +7,8 @@ package configs
 
 import (
 	"fmt"
+	"log"
+	"path/filepath"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -75,8 +77,6 @@ func (p *Parser) LoadHCLFile(path string) (hcl.Body, hcl.Diagnostics) {
 			},
 		}
 	}
-	fmt.Println("Source file content:")
-	fmt.Println(string(src))
 
 	var file *hcl.File
 	var diags hcl.Diagnostics
@@ -84,7 +84,7 @@ func (p *Parser) LoadHCLFile(path string) (hcl.Body, hcl.Diagnostics) {
 	case strings.HasSuffix(path, ".json"):
 		file, diags = p.p.ParseJSON(src, path)
 	case strings.HasSuffix(path, ".cue"):
-		file, diags = p.LoadCUEFile(path)
+		file, diags = p.LoadCUEDir(path)
 	default:
 		file, diags = p.p.ParseHCL(src, path)
 	}
@@ -99,57 +99,104 @@ func (p *Parser) LoadHCLFile(path string) (hcl.Body, hcl.Diagnostics) {
 }
 
 func (p *Parser) LoadCUEFileWrapper(path string) (hcl.Body, hcl.Diagnostics) {
-	file, diags := p.LoadCUEFile(path)
+	file, diags := p.LoadCUEDir(path)
 	if file == nil {
 		return hcl.EmptyBody(), diags
 	}
 	return file.Body, diags
 }
 
-func (p *Parser) LoadCUEFile(path string) (*hcl.File, hcl.Diagnostics) {
+func (p *Parser) LoadCUEDir(path string) (*hcl.File, hcl.Diagnostics) {
+	if strings.HasSuffix(path, ".cue") {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			return &hcl.File{}, hcl.Diagnostics{
+				{
+					Severity: hcl.DiagError,
+					Summary:  "Failed to get absolute directory path",
+					Detail:   fmt.Sprintf("Error obtaining absolute path for directory %q: %v", path, err),
+				},
+			}
+		}
+		path = filepath.Dir(absPath)
+	}
+	fmt.Println("Loading files from " + path)
 	// Read the CUE file and create an instance
-	_, err := p.fs.ReadFile(path)
+	/*
+		// Create an instance from the CUE file
+		buildInstances := load.Instances([]string{path}, nil)
+		if len(buildInstances) == 0 || buildInstances[0].Err != nil {
+			return &hcl.File{}, hcl.Diagnostics{
+				{
+					Severity: hcl.DiagError,
+					Summary:  "Failed to load CUE file",
+					Detail:   fmt.Sprintf("Error parsing CUE file: %v", buildInstances[0].Err),
+				},
+			}
+		}*/
+
+	c := cuecontext.New()
+	// Assuming 'path' is the directory containing your CUE files
+	cfg := &load.Config{
+		Dir:         path, // Set the directory to load all CUE files from
+		Package:     "*",
+		AllCUEFiles: true,
+	}
+
+	// Create instances from all CUE files in the directory, including imported modules
+	buildInstances := load.Instances([]string{"."}, cfg) // Use absDirPath to indicate all files in the specified directory
+
+	var mergedInstance cue.Value
+	for _, inst := range buildInstances {
+		if inst.Err != nil {
+			log.Fatalf("Error loading CUE files: %v", inst.Err)
+		}
+
+		value := c.BuildInstance(inst)
+		if value.Err() != nil {
+			log.Fatalf("Error building CUE instance: %v", value.Err())
+		}
+
+		// Merge all instances into a single instance for unified handling
+		if !mergedInstance.Exists() {
+			mergedInstance = value
+		} else {
+			mergedInstance = mergedInstance.Unify(value)
+			if mergedInstance.Err() != nil {
+				log.Fatalf("Error merging CUE instances: %v", mergedInstance.Err())
+			}
+		}
+
+		fmt.Printf("Loaded and built instance from: %s\n", inst.DisplayPath)
+	}
+
+	if len(buildInstances) == 0 {
+		return &hcl.File{}, hcl.Diagnostics{
+			{
+				Severity: hcl.DiagError,
+				Summary:  "Failed to load CUE files",
+				Detail:   "No CUE instances found in the directory.",
+			},
+		}
+	}
+	if mergedInstance.Err() != nil {
+		return &hcl.File{}, hcl.Diagnostics{
+			{
+				Severity: hcl.DiagError,
+				Summary:  "Failed to merge CUE instances",
+				Detail:   fmt.Sprintf("Error merging CUE instances: %v", mergedInstance.Err()),
+			},
+		}
+	}
+
+	// Convert the merged CUE instance to JSON
+	jsonBytes, err := mergedInstance.MarshalJSON()
 	if err != nil {
 		return &hcl.File{}, hcl.Diagnostics{
 			{
 				Severity: hcl.DiagError,
-				Summary:  "Failed to read file",
-				Detail:   fmt.Sprintf("The file %q could not be read.", path),
-			},
-		}
-	}
-
-	// Create an instance from the CUE file
-	buildInstances := load.Instances([]string{path}, nil)
-	if len(buildInstances) == 0 || buildInstances[0].Err != nil {
-		return &hcl.File{}, hcl.Diagnostics{
-			{
-				Severity: hcl.DiagError,
-				Summary:  "Failed to load CUE file",
-				Detail:   fmt.Sprintf("Error parsing CUE file: %v", buildInstances[0].Err),
-			},
-		}
-	}
-
-	instance := p.c.BuildInstance(buildInstances[0])
-	if instance.Err() != nil {
-		return &hcl.File{}, hcl.Diagnostics{
-			{
-				Severity: hcl.DiagError,
-				Summary:  "Failed to build CUE instance",
-				Detail:   fmt.Sprintf("Error building CUE instance: %v", instance.Err()),
-			},
-		}
-	}
-
-	// Convert the CUE instance to JSON
-	jsonBytes, err := instance.MarshalJSON()
-	if err != nil {
-		return &hcl.File{}, hcl.Diagnostics{
-			{
-				Severity: hcl.DiagError,
-				Summary:  "Failed to convert CUE to JSON",
-				Detail:   fmt.Sprintf("Error marshalling CUE to JSON: %v", err),
+				Summary:  "Failed to convert merged CUE instance to JSON",
+				Detail:   fmt.Sprintf("Error marshalling merged CUE instance to JSON: %v", err),
 			},
 		}
 	}

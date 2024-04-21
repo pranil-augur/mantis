@@ -95,7 +95,7 @@ func TestLoadCUEFileSuccess(t *testing.T) {
 	parser := NewParser(nil) // Using the OS filesystem for simplicity
 
 	// Adjust the path according to where you place your test CUE files
-	body, diags := parser.LoadCUEFile("testdata/cue-files/valid.cue")
+	body, diags := parser.LoadCUEDir("testdata/cue-files/valid.cue")
 	if diags.HasErrors() {
 		t.Fatalf("unexpected diagnostics: %+v", diags)
 	}
@@ -109,7 +109,7 @@ func TestLoadCUEFileFailure(t *testing.T) {
 	parser := NewParser(nil) // Using the OS filesystem for simplicity
 
 	// Adjust the path according to where you place your test CUE files
-	_, diags := parser.LoadCUEFile("testdata/cue-files/invalid.cue")
+	_, diags := parser.LoadCUEDir("testdata/cue-files/invalid.cue")
 	if !diags.HasErrors() {
 		t.Fatalf("expected diagnostics to indicate failure")
 	}
@@ -119,7 +119,7 @@ func TestLoadCUEFileFailure(t *testing.T) {
 func TestLoadComplexCUEFileResource(t *testing.T) {
 	parser := NewParser(nil) // Using the OS filesystem for simplicity
 
-	body, diags := parser.LoadCUEFile("testdata/cue-files/complex_resource.cue")
+	body, diags := parser.LoadCUEDir("testdata/cue-files/complex_resource.cue")
 	if diags.HasErrors() {
 		t.Fatalf("unexpected diagnostics: %+v", diags)
 	}
@@ -132,7 +132,7 @@ func TestLoadComplexCUEFileResource(t *testing.T) {
 func TestLoadComplexCUEFileVariable(t *testing.T) {
 	parser := NewParser(nil) // Using the OS filesystem for simplicity
 
-	body, diags := parser.LoadCUEFile("testdata/cue-files/variable_definition.cue")
+	body, diags := parser.LoadCUEDir("testdata/cue-files/variable_definition.cue")
 	if diags.HasErrors() {
 		t.Fatalf("unexpected diagnostics: %+v", diags)
 	}

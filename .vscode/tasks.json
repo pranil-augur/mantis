@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-my-project",
+            "type": "shell",
+            "command": "GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o tofu -v -buildvcs=false ./cmd/tofu",
+            "problemMatcher": []
+        },
+        {
+            "label": "run_tofu_in_temp",
+            "type": "shell",
+            "command": "./run_tofu.sh",
+            "problemMatcher": []
+        }
+    ]
+}
