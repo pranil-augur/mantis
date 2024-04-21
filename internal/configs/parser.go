@@ -107,6 +107,7 @@ func (p *Parser) LoadCUEFileWrapper(path string) (hcl.Body, hcl.Diagnostics) {
 }
 
 func (p *Parser) LoadCUEDir(path string) (*hcl.File, hcl.Diagnostics) {
+	var dirPath string
 	if strings.HasSuffix(path, ".cue") {
 		absPath, err := filepath.Abs(path)
 		if err != nil {
@@ -118,27 +119,14 @@ func (p *Parser) LoadCUEDir(path string) (*hcl.File, hcl.Diagnostics) {
 				},
 			}
 		}
-		path = filepath.Dir(absPath)
+		dirPath = filepath.Dir(absPath)
 	}
-	fmt.Println("Loading files from " + path)
-	// Read the CUE file and create an instance
-	/*
-		// Create an instance from the CUE file
-		buildInstances := load.Instances([]string{path}, nil)
-		if len(buildInstances) == 0 || buildInstances[0].Err != nil {
-			return &hcl.File{}, hcl.Diagnostics{
-				{
-					Severity: hcl.DiagError,
-					Summary:  "Failed to load CUE file",
-					Detail:   fmt.Sprintf("Error parsing CUE file: %v", buildInstances[0].Err),
-				},
-			}
-		}*/
+	fmt.Println("Loading files from " + dirPath)
 
 	c := cuecontext.New()
 	// Assuming 'path' is the directory containing your CUE files
 	cfg := &load.Config{
-		Dir:         path, // Set the directory to load all CUE files from
+		Dir:         dirPath, // Set the directory to load all CUE files from
 		Package:     "*",
 		AllCUEFiles: true,
 	}
@@ -170,15 +158,7 @@ func (p *Parser) LoadCUEDir(path string) (*hcl.File, hcl.Diagnostics) {
 		fmt.Printf("Loaded and built instance from: %s\n", inst.DisplayPath)
 	}
 
-	if len(buildInstances) == 0 {
-		return &hcl.File{}, hcl.Diagnostics{
-			{
-				Severity: hcl.DiagError,
-				Summary:  "Failed to load CUE files",
-				Detail:   "No CUE instances found in the directory.",
-			},
-		}
-	}
+	fmt.Printf("Contents of the mergedInstance: %v\n", mergedInstance)
 	if mergedInstance.Err() != nil {
 		return &hcl.File{}, hcl.Diagnostics{
 			{
@@ -201,11 +181,11 @@ func (p *Parser) LoadCUEDir(path string) (*hcl.File, hcl.Diagnostics) {
 		}
 	}
 
-	// Parse the JSON bytes using the HCL parser to get an hcl.File
 	file, diags := p.p.ParseJSON(jsonBytes, path)
 	if diags.HasErrors() {
 		return &hcl.File{}, diags
 	}
+	fmt.Printf("Parsed HCL file contents: %s\n", string(jsonBytes))
 
 	// Return the Body of the parsed file, which is of type hcl.Body
 	return file, nil
