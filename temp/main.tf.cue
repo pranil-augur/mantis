@@ -21,7 +21,7 @@ resource: {
             content:  """
                       1. Understand Cuelang Syntax and Semantics: Before making changes, ensure a deep understanding of how Cuelang structures configuration data.
                       """
-            filename: "${path.module}/output.txt" // Correct the path escaping here
+            filename: #abc.filename 
         }
     }
 }
