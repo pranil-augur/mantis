@@ -1,75 +1,54 @@
 package main
 
-#VPCConfig: {
-    cidr_block: string
-}
-
-#SubnetConfig: {
-    vpc_id:     string
-    cidr_block: string
-    tags:       [string]: string | *{}
-}
-
-// Example VPC and subnet configurations
-exampleVPC: {
-    cidrBlock: "10.0.0.0/16"
-    subnets: {
-        "subnet-01": { cidr: "10.0.1.0/24" },
-        "subnet-02": { cidr: "10.0.2.0/24" }
+// Define a generic structure for a Terraform provider
+#Provider: {
+    "provider": {
+        aws: {
+            version: string
+        }
     }
 }
 
-vpcResources: {
-    "aws_vpc": {
-        "example": {
-            cidr_block: exampleVPC.cidrBlock
-        }
-    },
-    "aws_subnet": {
-        for name, subnet in exampleVPC.subnets {
-            "\(name)": {
-                vpc_id:     "aws_vpc.example.id",
-                cidr_block: subnet.cidr,
-                tags:       subnet.tags | *{}
+// Define a generic structure for Terraform S3 bucket resource
+#S3Bucket: {
+    "resource": {
+        "aws_s3_bucket": {
+            [string]: {
+                bucket: string
+                tags: [string]: string
             }
         }
     }
 }
 
-#EKSClusterConfig: {
-    cluster_name: string
-    version:      string
-    subnet_ids:   [...string]
-    depends_on:   [...string]
-}
 
-// Adjusted Example EKS cluster configuration
-exampleCluster: {
-    name:    "example-eks-cluster", // Corrected to 'name' from 'cluster_name'
-    version: "1.29",
-    vpcConfig: {
-        subnets: ["subnet-12345678", "subnet-87654321"]
-    },
-    role_arn: "arn:aws:iam::123456789012:role/EKSRole" // Add your actual IAM role ARN here
-}
-
-// Adjusted EKS resources definition
-eksResources: {
-    "aws_eks_cluster": {
-        "example": {
-            name:    exampleCluster.name, // Corrected to 'name' from 'cluster_name'
-            version: exampleCluster.version,
-            role_arn: exampleCluster.role_arn, // Added role_arn
-            vpc_config: {
-                subnet_ids: exampleCluster.vpcConfig.subnets
-            },
-            depends_on: ["aws_vpc.example"]
+// AWS provider configuration with version details
+awsProvider: #Provider & {
+    "provider": {
+        aws: {
+            version: ">= 4.67.0"
         }
     }
 }
 
-// Merge all resources into a single blueprint
+// S3 bucket configuration with specific bucket name and tags
+s3Bucket: #S3Bucket & {
+    "resource": {
+        "aws_s3_bucket": {
+            "otfork-sample-bucket": {
+                bucket: "otfork-sample-bucket"
+                tags: {
+                    "Name":        "ot-fork"
+                    "Environment": "dev"
+                }
+            }
+        }
+    }
+}
+
+// Combine provider and resource configurations into a blueprint
 cueform: {
-    resource: vpcResources & eksResources
+    provider: awsProvider.provider
+    resource: s3Bucket.resource
 }
 
