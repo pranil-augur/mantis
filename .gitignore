@@ -18,6 +18,7 @@ website/node_modules
 *.test
 *.iml
 
+temp/.terraform
 /tofu
 
 website/vendor

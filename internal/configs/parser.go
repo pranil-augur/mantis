@@ -169,8 +169,14 @@ func (p *Parser) LoadCUEDir(path string) (*hcl.File, hcl.Diagnostics) {
 		}
 	}
 
+	// Assuming 'blueprint' is a top-level field in your CUE structure
+	cueformValue := mergedInstance.LookupPath(cue.ParsePath("cueform"))
+	if !cueformValue.Exists() {
+		log.Fatalf("cueform tag not found in CUE instance")
+	}
+
 	// Convert the merged CUE instance to JSON
-	jsonBytes, err := mergedInstance.MarshalJSON()
+	jsonBytes, err := cueformValue.MarshalJSON()
 	if err != nil {
 		return &hcl.File{}, hcl.Diagnostics{
 			{
