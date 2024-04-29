@@ -1,7 +1,7 @@
 package main
 
 
-import "strings"
+import "augur"
 
 // Common configuration values
 common: {
@@ -144,12 +144,10 @@ locals: {
     azs: ["us-east-1a", "us-east-1b"] 
 
     // Generate private subnets CIDRs
-    private_subnets: [for index, _ in locals.azs { strings.ToUpper("Hello") }]
-    // private_subnets: [for index, _ in locals.azs { cidrsubnet("10.42.0.0/16", 3, index + 3) }]
+    private_subnets: [for index, _ in locals.azs { augur.CidrSubnet("10.42.0.0/16", 3, index + 3) }]
 
     // Generate public subnets CIDRs
-    public_subnets: [for index, _ in locals.azs { strings.ToUpper("abc") }]
-    //public_subnets: [for index, _ in locals.azs { cidrsubnet("10.42.0.0/16", 3, index) }]
+    public_subnets: [for index, _ in locals.azs { augur.CidrSubnet("10.42.0.0/16", 3, index) }]
 }
 
 vpc: #ModuleVPC & {
@@ -157,9 +155,9 @@ vpc: #ModuleVPC & {
     version: "~> 5.1"
     name:    "eks-workshop"
     cidr:    "10.42.0.0/16"
-    azs:     "\(locals.azs)"
-    public_subnets: "\(locals.public_subnets)"
-    private_subnets: "\(locals.private_subnets)"
+    azs:     locals.azs
+    public_subnets: locals.public_subnets
+    private_subnets: locals.private_subnets
     public_subnet_suffix: "SubnetPublic"
     private_subnet_suffix: "SubnetPrivate"
     enable_nat_gateway: true
@@ -192,13 +190,6 @@ cueform: {
             ]
         }
     },
-	 "locals" : [
-        {
-            "azs": "${slice(data.aws_availability_zones.available.names, 0, 2)}",
-            "private_subnets": "${[for k, v in local.azs : cidrsubnet(\(common.vpc_cidr), 3, k + 3)]}",
-            "public_subnets": "${[for k, v in local.azs : cidrsubnet(\(common.vpc_cidr), 3, k)]}"
-        }
-    ],
     module: {
         "eks_blueprints_addons": eksAddons
         "eks": eks
