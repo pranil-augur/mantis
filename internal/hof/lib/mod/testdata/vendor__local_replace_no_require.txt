@@ -1,0 +1,28 @@
+# hof mod vendor - local replace no require
+exec hof mod vendor
+
+
+
+-- cue.mods --
+module github.com/test/mod
+
+cue v0.4.3
+
+replace github.com/opentofu/opentofu/internal/hof => ./simhof
+
+-- cue.mod/module.cue --
+module: "github.com/test/mod"
+
+-- dummy_end --
+
+
+-- simhof/cue.mods --
+module github.com/opentofu/opentofu/internal/hof
+
+cue v0.4.3
+
+-- simhof/cue.mod/module.cue --
+module: "github.com/opentofu/opentofu/internal/hof"
+
+-- dummy_end --
+

@@ -1,0 +1,24 @@
+exec hof mod vendor
+
+exec hof mod get github.com/opentofu/opentofu/internal/hof@v0.6.8-beta.9
+cmp cue.mod/module.cue match/cue.mod/module-get.cue
+
+-- cue.mod/module.cue --
+module: "hof.io/test"
+cue: "0.7.0"
+
+require: {
+	"github.com/opentofu/opentofu/internal/hof": "v0.6.8-beta.3"
+}
+-- match/cue.mod/module-get.cue --
+module: "hof.io/test"
+cue:    "0.7.0"
+
+require: {
+	"github.com/opentofu/opentofu/internal/hof": "v0.6.8-beta.9"
+}
+
+indirect: {
+	"github.com/hofstadter-io/ghacue":     "v0.2.0"
+	"github.com/opentofu/opentofu/internal/hofmod-cli": "v0.8.1"
+}

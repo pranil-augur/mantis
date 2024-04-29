@@ -1,0 +1,26 @@
+skip
+
+# this works, but the result drifts over time
+# so we probably need to think about a better check
+
+exec hof mod init hof.io/test
+cmp cue.mod/module.cue match/cue.mod/module-init.cue
+
+exec hof mod get -P github.com/opentofu/opentofu/internal/hof@latest
+cmp cue.mod/module.cue match/cue.mod/module-get.cue
+
+-- match/cue.mod/module-init.cue --
+module: "hof.io/test"
+cue: "0.7.0"
+-- match/cue.mod/module-get.cue --
+module: "hof.io/test"
+cue:    "0.7.0"
+
+require: {
+	"github.com/opentofu/opentofu/internal/hof": "v0.6.8-beta.5"
+}
+
+indirect: {
+	"github.com/hofstadter-io/ghacue":     "v0.2.0"
+	"github.com/opentofu/opentofu/internal/hofmod-cli": "v0.8.0"
+}

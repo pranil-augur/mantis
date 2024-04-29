@@ -1,0 +1,12 @@
+# hof mod vendor - with deps
+
+env GITHUB_TOKEN=thistokendoesnotexist
+! exec hof mod vendor
+
+-- cue.mod/module.cue --
+module: "github.com/test/priv-github"
+cue: "0.7.0"
+
+require: {
+	"github.com/opentofu/opentofu/internal/hofmod-test-priv-github": "v0.0.2"
+}

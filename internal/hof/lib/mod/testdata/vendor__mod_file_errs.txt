@@ -1,0 +1,16 @@
+skip
+
+# hof mod vendor - double require
+! exec hof mod vendor cue
+stdout 'Dependency "github.com/opentofu/opentofu/internal/hof" required twice in ""'
+! stderr .
+
+-- cue.mod/module.cue --
+module: "github.com/test/2x-req"
+cue "0.7.0"
+
+require: {
+    "github.com/opentofu/opentofu/internal/hof": "v0.0.0"
+    "github.com/opentofu/opentofu/internal/hof": "v0.6.7"
+}
+-- dummy-end --

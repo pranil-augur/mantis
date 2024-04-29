@@ -1,0 +1,61 @@
+project_name: hof
+release:
+  disable: false
+  draft: true
+  github:
+    name: hof
+    owner: hofstadter-io
+changelog:
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+  sort: asc
+checksum:
+  name_template: '{{ .ProjectName }}_{{ .Tag }}_checksums.txt'
+snapshot:
+  name_template: '{{ .Tag }}-SNAPSHOT-{{ .ShortCommit }}'
+builds:
+  - binary: hof
+    env:
+      - CGO_ENABLED=0
+    goarch:
+      - amd64
+      - arm64
+    goos:
+      - darwin
+      - linux
+      - windows
+    ldflags:
+      - -s -w
+      - -X github.com/opentofu/opentofu/internal/hof/cmd/hof/verinfo.Version={{ .Tag }}
+      - -X github.com/opentofu/opentofu/internal/hof/cmd/hof/verinfo.Commit={{ .FullCommit }}
+      - -X github.com/opentofu/opentofu/internal/hof/cmd/hof/verinfo.BuildDate={{ .Date }}
+      - -X github.com/opentofu/opentofu/internal/hof/cmd/hof/verinfo.BuildOS={{ .Os }}
+      - -X github.com/opentofu/opentofu/internal/hof/cmd/hof/verinfo.BuildArch={{ .Arch }}
+      - -X github.com/opentofu/opentofu/internal/hof/cmd/hof/verinfo.BuildArm={{ .Arm }}
+    main: main.go
+dockers:
+  - dockerfile: ../../ci/hof/docker/Dockerfile.debian
+    skip_push: false
+    image_templates:
+      - ghcr.io/hofstadter-io/hof:{{.Tag}}
+      - ghcr.io/hofstadter-io/hof:{{ .ShortCommit }}
+      - ghcr.io/hofstadter-io/hof:latest
+  - dockerfile: ../../ci/hof/docker/Dockerfile.debian
+    skip_push: false
+    image_templates:
+      - ghcr.io/hofstadter-io/hof:debian-{{.Tag}}
+      - ghcr.io/hofstadter-io/hof:debian-{{ .ShortCommit }}
+      - ghcr.io/hofstadter-io/hof:debian-latest
+  - dockerfile: ../../ci/hof/docker/Dockerfile.alpine
+    skip_push: false
+    image_templates:
+      - ghcr.io/hofstadter-io/hof:alpine-{{.Tag}}
+      - ghcr.io/hofstadter-io/hof:alpine-{{ .ShortCommit }}
+      - ghcr.io/hofstadter-io/hof:alpine-latest
+archives:
+  - files:
+      - thisfiledoesnotexist*
+    format: binary
+    name_template: '{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}'

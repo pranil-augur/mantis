@@ -1,0 +1,11 @@
+exec hof mod vendor
+
+exec hof mod get github.com/opentofu/opentofu/internal/hof@v0.6.8-rc.6
+
+-- cue.mod/module.cue --
+module: "hof.io/test"
+cue:    "0.7.0"
+
+require: {
+	"github.com/opentofu/opentofu/internal/hof": "v0.6.8"
+}

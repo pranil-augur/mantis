@@ -1,0 +1,11 @@
+# hof mod vendor - with deps
+exec hof mod vendor
+exists cue.mod/pkg/github.com/opentofu/opentofu/internal/hof/cue.mod/module.cue
+
+-- cue.mod/module.cue --
+module: "github.com/test/withsolo"
+cue: "0.7.0"
+
+require: {
+	"github.com/opentofu/opentofu/internal/hof": "v0.6.8-beta.9"
+}

@@ -1,0 +1,10 @@
+# hof mod vendor - with deps
+exec hof mod vendor
+
+-- cue.mod/module.cue --
+module: "github.com/test/priv-gitlab"
+cue: "0.7.0"
+
+require: {
+	"gitlab.com/_hofstadter/hofmod-test-priv-gitlab": "v0.0.2"
+}

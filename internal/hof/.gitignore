@@ -1,0 +1,69 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go test and coverage tool
+/**/tests.json
+/**/tests.out
+/**/cover.out
+/**/cover.html
+
+# GoReleaser / Binaries
+/cmd/**/dist/
+/cmd/hof/hof
+
+# Cue mods
+/cue.mod/pkg/
+/test/**/cue.mod/pkg/
+
+# Go mods
+/vendor/
+/**/vendor/
+
+# Script workdirs
+/**/.hls/
+/**/.tmp/
+/**/.workdir/
+
+# Hof related
+/hof-cpu.prof
+/hof
+
+# Hof shadow related
+/.hof/shadow/test/
+
+# Sonar Cloud
+/.sonar/
+/.scannerwork/
+/sonar-reports/
+
+### Vim ###
+# Swap
+[._]*.s[a-v][a-z]
+!*.svg  # comment out if you don't need vector files
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# Session
+Session.vim
+Sessionx.vim
+
+# Temporary
+.netrwhist
+*~
+# Auto-generated tag files
+tags
+# Persistent undo
+[._]*.un~
+
+# End of https://www.toptal.com/developers/gitignore/api/vim
+/tmp/
+/build/
