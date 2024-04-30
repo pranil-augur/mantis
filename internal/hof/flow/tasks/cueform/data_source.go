@@ -1,3 +1,13 @@
+/*
+ * Augur AI Proprietary
+ * Copyright (c) 2024 Augur AI, Inc.
+ *
+ * This file is licensed under the Augur AI Proprietary License.
+ *
+ * Attribution:
+ * This work is based on code from https://github.com/hofstadter-io/hof, licensed under the Apache License 2.0.
+ */
+
 package cueform
 
 import (
@@ -5,10 +15,15 @@ import (
 	"os"
 
 	"cuelang.org/go/cue"
+	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-svchost/disco"
 	"github.com/mitchellh/cli"
+	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/command"
+	"github.com/opentofu/opentofu/internal/command/cliconfig"
 	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/getproviders"
 	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 	"github.com/opentofu/opentofu/internal/terminal"
 )
@@ -30,18 +45,40 @@ func NewTerraformDataSourceTask(val cue.Value, configFilePath string) (hofcontex
 }
 
 func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
-	wd := workingDir(originalWorkingDir, os.Getenv("TF_DATA_DIR"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get working directory: %v", err)
+	// Load configuration
+	config, diags := cliconfig.LoadConfig()
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("failed to load CLI configuration: %v", diags.Err())
 	}
 
-	streams := terminal.DefaultStreams() // Assuming no error is returned
+	// Initialize services
+	services := disco.NewWithCredentialsSource(nil) // Simplified for example
 
+	// Initialize provider source and overrides
+	providerSrc := getproviders.NewRegistrySource(services)
+	providerDevOverrides := map[addrs.Provider]getproviders.PackageLocalDir{}
+
+	// Initialize unmanaged providers (simplified)
+	unmanagedProviders := map[addrs.Provider]*plugin.ReattachConfig{}
+
+	// Initialize terminal streams
+	streams, err := terminal.Init()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize terminal: %v", err)
+	}
+
+	// Initialize commands
+	initCommands(ctx.Context, "", streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders)
+
+	originalWd, err := os.Getwd()
+	wd := workingDir(originalWd, os.Getenv("TF_DATA_DIR"))
+
+	// Setup the environment for running the PlanCommand
 	meta := command.Meta{
-		WorkingDir: workingDir,
+		WorkingDir: wd,
 		Streams:    streams,
 		View:       views.NewView(streams),
-		Ui:         Ui, // Use the global Ui variable
+		Ui:         Ui,
 	}
 
 	// Initialize the PlanCommand with the meta configuration

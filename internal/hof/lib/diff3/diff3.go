@@ -1,4 +1,14 @@
 /*
+ * Augur AI Proprietary
+ * Copyright (c) 2024 Augur AI, Inc.
+ *
+ * This file is licensed under the Augur AI Proprietary License.
+ *
+ * Attribution:
+ * This work is based on code from https://github.com/hofstadter-io/hof, licensed under the Apache License 2.0.
+ */
+
+/*
 Package diff3 implements a three-way merge algorithm
 Original version in Javascript by Bryan Housel @bhousel: https://github.com/bhousel/node-diff3,
 which in turn is based on project Synchrotron, created by Tony Garnock-Jones. For more detail please visit:
