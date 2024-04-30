@@ -53,6 +53,15 @@ func (p *Parser) LoadTestFile(path string) (*TestFile, hcl.Diagnostics) {
 
 func (p *Parser) loadConfigFile(path string, override bool) (*File, hcl.Diagnostics) {
 	body, diags := p.LoadHCLFile(path)
+	return p.loadConfig(body, diags, override)
+}
+
+func (p *Parser) loadConfigFromString(configStr string, formatType string, override bool) (*File, hcl.Diagnostics) {
+	body, diags := p.LoadHCLString(configStr, formatType)
+	return p.loadConfig(body, diags, override)
+}
+
+func (p *Parser) loadConfig(body hcl.Body, diags hcl.Diagnostics, override bool) (*File, hcl.Diagnostics) {
 	if body == nil {
 		return nil, diags
 	}

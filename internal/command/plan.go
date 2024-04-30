@@ -7,6 +7,8 @@ package command
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/opentofu/opentofu/internal/backend"
@@ -68,9 +70,26 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	c.Meta.parallelism = args.Operation.Parallelism
 
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
+	// Load main.tf.cue file from the file system as configStr
+	configFilePath := "main.tf.cue"
+	cwd, err := os.Getwd()
+	if err != nil {
+		diags = diags.Append(fmt.Errorf("failed to get current working directory: %w", err))
+		view.Diagnostics(diags)
+		return 1
+	}
+	configFilePath = filepath.Join(cwd, configFilePath)
+	configStr, readErr := os.ReadFile(configFilePath)
+	if readErr != nil {
+		diags = diags.Append(fmt.Errorf("failed to read the file %s: %w", configFilePath, readErr))
+		view.Diagnostics(diags)
+		return 1
+	}
 
+	fmt.Println("Configuration String Loaded:", string(configStr))
 	// Load the encryption configuration
-	enc, encDiags := c.Encryption()
+	enc, encDiags := c.EncryptionFromString(string(configStr), "cue")
+
 	diags = diags.Append(encDiags)
 	if encDiags.HasErrors() {
 		view.Diagnostics(diags)

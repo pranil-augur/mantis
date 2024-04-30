@@ -95,6 +95,21 @@ func (m *Meta) loadSingleModule(dir string) (*configs.Module, tfdiags.Diagnostic
 	return module, diags
 }
 
+func (m *Meta) loadSingleModuleString(configstr string, currentDir string, configFmt string) (*configs.Module, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	dir := m.normalizePath(currentDir)
+
+	loader, err := m.initConfigLoader()
+	if err != nil {
+		diags = diags.Append(err)
+		return nil, diags
+	}
+
+	module, hclDiags := loader.Parser().LoadConfigFromStr(configstr, dir, configFmt)
+	diags = diags.Append(hclDiags)
+	return module, diags
+}
+
 // loadSingleModuleWithTests matches loadSingleModule except it also loads any
 // tests for the target module.
 func (m *Meta) loadSingleModuleWithTests(dir string, testDir string) (*configs.Module, tfdiags.Diagnostics) {

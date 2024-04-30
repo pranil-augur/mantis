@@ -28,6 +28,10 @@ func (l *Loader) LoadConfig(rootDir string) (*configs.Config, hcl.Diagnostics) {
 	return l.loadConfig(l.parser.LoadConfigDir(rootDir))
 }
 
+func (l *Loader) LoadConfigFromString(configStr string, dir string, cfgFmt string) (*configs.Config, hcl.Diagnostics) {
+	return l.loadConfig(l.parser.LoadConfigFromStr(configStr, dir, cfgFmt))
+}
+
 // LoadConfigWithTests matches LoadConfig, except the configs.Config contains
 // any relevant .tftest.hcl files.
 func (l *Loader) LoadConfigWithTests(rootDir string, testDir string) (*configs.Config, hcl.Diagnostics) {

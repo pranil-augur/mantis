@@ -57,6 +57,26 @@ func (p *Parser) LoadConfigDir(path string) (*Module, hcl.Diagnostics) {
 	return mod, diags
 }
 
+// LoadConfigFromStr reads the configuration from a string and behaves similarly to LoadConfigDir.
+func (p *Parser) LoadConfigFromStr(configStr string, currentDir string, cfgFmt string) (*Module, hcl.Diagnostics) {
+	// Simulate reading files from a directory by parsing the configuration string
+	primary, primaryDiags := p.loadConfigFromString(configStr, cfgFmt, false)
+	override, overrideDiags := p.loadConfigFromString(configStr, cfgFmt, true)
+
+	var diags hcl.Diagnostics
+	diags = append(diags, primaryDiags...)
+	diags = append(diags, overrideDiags...)
+
+	// Combine primary and override configurations into a single module
+	mod, modDiags := NewModule([]*File{primary}, []*File{override})
+	diags = append(diags, modDiags...)
+
+	// Set the source directory to the current directory
+	mod.SourceDir = currentDir
+
+	return mod, diags
+}
+
 // LoadConfigDirWithTests matches LoadConfigDir, but the return Module also
 // contains any relevant .tftest.hcl files.
 func (p *Parser) LoadConfigDirWithTests(path string, testDirectory string) (*Module, hcl.Diagnostics) {
