@@ -255,6 +255,8 @@ type Operation struct {
 	// root module.
 	ConfigDir string
 
+	ConfigDetails *configs.MicroConfig
+
 	// ConfigLoader is a configuration loader that can be used to load
 	// configuration from ConfigDir.
 	ConfigLoader *configload.Loader

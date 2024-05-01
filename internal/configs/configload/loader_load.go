@@ -28,8 +28,8 @@ func (l *Loader) LoadConfig(rootDir string) (*configs.Config, hcl.Diagnostics) {
 	return l.loadConfig(l.parser.LoadConfigDir(rootDir))
 }
 
-func (l *Loader) LoadConfigFromString(configStr []byte, dir string, cfgFmt string) (*configs.Config, hcl.Diagnostics) {
-	return l.loadConfig(l.parser.LoadConfigFromStr(configStr, dir, cfgFmt))
+func (l *Loader) LoadConfigFromString(configDetails *configs.MicroConfig, dir string, cfgFmt string) (*configs.Config, hcl.Diagnostics) {
+	return l.loadConfig(l.parser.LoadConfigFromStr(configDetails, dir))
 }
 
 // LoadConfigWithTests matches LoadConfig, except the configs.Config contains

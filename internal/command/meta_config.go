@@ -92,8 +92,8 @@ func (m *Meta) loadSingleModule(dir string) (*configs.Module, tfdiags.Diagnostic
 
 	var module *configs.Module
 	var hclDiags hcl.Diagnostics
-	if m.ConfigByteArray != nil {
-		module, hclDiags = loader.Parser().LoadConfigFromStr(m.ConfigByteArray, dir, "json")
+	if m.ConfigDetails != nil {
+		module, hclDiags = loader.Parser().LoadConfigFromStr(m.ConfigDetails, dir)
 	} else {
 		module, hclDiags = loader.Parser().LoadConfigDir(dir)
 	}

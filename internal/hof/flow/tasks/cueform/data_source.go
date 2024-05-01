@@ -21,6 +21,7 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/command"
 	"github.com/opentofu/opentofu/internal/command/cliconfig"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/getproviders"
 	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 	"github.com/opentofu/opentofu/internal/terminal"
@@ -77,8 +78,16 @@ func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
 	}
 
 	var std_ctx context.Context
+
+	_, taskPath := v.ReferencePath()
+
+	configDetails := &configs.MicroConfig{
+		Identifier: taskPath.String(),
+		Content:    scriptBytes,
+		Format:     "json",
+	}
 	// Initialize commands
-	commandsFactory := utils.InitCommandsWrapper(std_ctx, "", streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders, scriptBytes)
+	commandsFactory := utils.InitCommandsWrapper(std_ctx, "", streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders, configDetails)
 	// Retrieve the 'plan' command from the commandsFactory using the appropriate key
 	planCommandFactory, exists := commandsFactory["plan"]
 	if !exists {

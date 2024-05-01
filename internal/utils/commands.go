@@ -21,6 +21,7 @@ import (
 	"github.com/opentofu/opentofu/internal/command/cliconfig"
 	"github.com/opentofu/opentofu/internal/command/views"
 	"github.com/opentofu/opentofu/internal/command/webbrowser"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/getproviders"
 	pluginDiscovery "github.com/opentofu/opentofu/internal/plugin/discovery"
 	"github.com/opentofu/opentofu/internal/terminal"
@@ -64,10 +65,10 @@ func InitCommandsWrapper(
 	providerSrc getproviders.Source,
 	providerDevOverrides map[addrs.Provider]getproviders.PackageLocalDir,
 	unmanagedProviders map[addrs.Provider]*plugin.ReattachConfig,
-	configByteArray []byte,
+	configDetails *configs.MicroConfig,
 ) map[string]cli.CommandFactory {
 	// Call the existing InitCommands function
-	InitCommands(ctx, originalWorkingDir, streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders, configByteArray)
+	InitCommands(ctx, originalWorkingDir, streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders, configDetails)
 
 	// Return the global Commands map
 	return Commands
@@ -82,7 +83,7 @@ func InitCommands(
 	providerSrc getproviders.Source,
 	providerDevOverrides map[addrs.Provider]getproviders.PackageLocalDir,
 	unmanagedProviders map[addrs.Provider]*plugin.ReattachConfig,
-	configByteArray []byte,
+	configDetails *configs.MicroConfig,
 ) {
 	var inAutomation bool
 	if v := os.Getenv(runningInAutomationEnvName); v != "" {
@@ -132,7 +133,7 @@ func InitCommands(
 		UnmanagedProviders:   unmanagedProviders,
 
 		AllowExperimentalFeatures: experimentsAreAllowed(),
-		ConfigByteArray:           configByteArray,
+		ConfigDetails:             configDetails,
 	}
 
 	// The command list is included in the tofu -help

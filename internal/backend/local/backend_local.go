@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/opentofu/opentofu/internal/backend"
@@ -146,7 +147,15 @@ func (b *Local) localRunDirect(op *backend.Operation, run *backend.LocalRun, cor
 
 	fmt.Println("--------This is being loaded in backend_local.go:localRunDirect ----")
 	// Load the configuration using the caller-provided configuration loader.
-	config, configSnap, configDiags := op.ConfigLoader.LoadConfigWithSnapshot(op.ConfigDir)
+	var config *configs.Config
+	var configDiags hcl.Diagnostics
+	var configSnap *configload.Snapshot
+	if op.ConfigDetails != nil {
+		config, configSnap, configDiags = op.ConfigLoader.LoadConfigWithSnapshotStr(op.ConfigDetails, op.ConfigDir)
+	} else {
+		config, configSnap, configDiags = op.ConfigLoader.LoadConfigWithSnapshot(op.ConfigDir)
+	}
+
 	diags = diags.Append(configDiags)
 	if configDiags.HasErrors() {
 		return nil, nil, diags

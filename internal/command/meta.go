@@ -77,7 +77,7 @@ type Meta struct {
 
 	// This is used in RunAPI mode where config is passed as []byte from the client
 	// instead of reading from the directory
-	ConfigByteArray []byte
+	ConfigDetails *configs.MicroConfig
 
 	Color            bool     // True if output should be colored
 	GlobalPluginDirs []string // Additional paths to search for plugins

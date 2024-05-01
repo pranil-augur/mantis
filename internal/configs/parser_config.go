@@ -56,8 +56,8 @@ func (p *Parser) loadConfigFile(path string, override bool) (*File, hcl.Diagnost
 	return p.loadConfig(body, diags, override)
 }
 
-func (p *Parser) loadConfigFromString(configStr []byte, formatType string, override bool) (*File, hcl.Diagnostics) {
-	body, diags := p.LoadHCLString(configStr, formatType)
+func (p *Parser) loadConfigFromString(configDetails *MicroConfig, override bool) (*File, hcl.Diagnostics) {
+	body, diags := p.LoadHCLString(configDetails)
 	return p.loadConfig(body, diags, override)
 }
 

@@ -103,19 +103,19 @@ func (p *Parser) LoadHCLFile(path string) (hcl.Body, hcl.Diagnostics) {
 //
 // The content will be parsed using the specified format type: HCL native syntax, HCL JSON syntax,
 // or CUE syntax.
-func (p *Parser) LoadHCLString(content []byte, formatType string) (hcl.Body, hcl.Diagnostics) {
+func (p *Parser) LoadHCLString(configDetails *MicroConfig) (hcl.Body, hcl.Diagnostics) {
 	var file *hcl.File
 	var diags hcl.Diagnostics
 
-	switch formatType {
+	switch configDetails.Format {
 	case "json":
-		file, diags = p.p.ParseJSON([]byte(content), "input.json")
+		file, diags = p.p.ParseJSON(configDetails.Content, "input.json")
 	case "cue":
-		fmt.Println("Parsing CUE content as string with content:", string(content))
+		fmt.Println("Parsing CUE content as string with content:", string(configDetails.Content))
 		// Assuming LoadCUEDir can be adapted to handle string content directly for CUE format
-		file, diags = p.LoadCUEString(content)
+		file, diags = p.loadCUEString(configDetails.Content)
 	default:
-		file, diags = p.p.ParseHCL([]byte(content), "input.hcl")
+		file, diags = p.p.ParseHCL(configDetails.Content, "input.hcl")
 	}
 
 	// If the returned file or body is nil, then we'll return a non-nil empty
@@ -128,7 +128,7 @@ func (p *Parser) LoadHCLString(content []byte, formatType string) (hcl.Body, hcl
 }
 
 // LoadCUEString is a helper method to parse CUE content from a string and convert it to HCL via JSON.
-func (p *Parser) LoadCUEString(content []byte) (*hcl.File, hcl.Diagnostics) {
+func (p *Parser) loadCUEString(content []byte) (*hcl.File, hcl.Diagnostics) {
 	c := cuecontext.New()
 	instance := c.CompileBytes(content)
 	if instance.Err() != nil {

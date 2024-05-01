@@ -42,6 +42,32 @@ func (l *Loader) LoadConfigWithSnapshot(rootDir string) (*configs.Config, *Snaps
 	return cfg, snap, diags
 }
 
+// LoadConfigWithSnapshotStr is a variant of LoadConfigWithSnapshot that also simultaneously
+// that uses the configuration that's passed as an argument insteafd of the config files from filesystem
+// mainly to support the API
+func (l *Loader) LoadConfigWithSnapshotStr(configDetails *configs.MicroConfig, rootDir string) (*configs.Config, *Snapshot, hcl.Diagnostics) {
+	rootMod, diags := l.parser.LoadConfigFromStr(configDetails, rootDir)
+	if rootMod == nil {
+		return nil, nil, diags
+	}
+
+	snap := &Snapshot{
+		Modules: map[string]*SnapshotModule{},
+	}
+	walker := l.makeModuleWalkerSnapshotFromConfig(snap)
+	cfg, cDiags := configs.BuildConfig(rootMod, walker)
+	diags = append(diags, cDiags...)
+
+	// Assuming configBytes is a map of filenames to content
+	configData := map[string][]byte{
+		configDetails.Identifier: configDetails.Content, // Example, adjust based on actual format and content
+	}
+	addDiags := l.addModuleToSnapshotFromConfig(snap, "", configData, rootDir, nil)
+	diags = append(diags, addDiags...)
+
+	return cfg, snap, diags
+}
+
 // NewLoaderFromSnapshot creates a Loader that reads files only from the
 // given snapshot.
 //
@@ -158,6 +184,36 @@ func (l *Loader) makeModuleWalkerSnapshot(snap *Snapshot) configs.ModuleWalker {
 	)
 }
 
+// makeModuleWalkerSnapshot creates a configs.ModuleWalker that will exhibit
+// the same lookup behaviors as l.moduleWalkerLoad but will additionally write
+// source files from the referenced modules into the given snapshot.
+func (l *Loader) makeModuleWalkerSnapshotFromConfig(snap *Snapshot) configs.ModuleWalker {
+	return configs.ModuleWalkerFunc(
+		func(req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
+			mod, v, diags := l.moduleWalkerLoad(req)
+			if diags.HasErrors() {
+				return mod, v, diags
+			}
+
+			key := l.modules.manifest.ModuleKey(req.Path)
+			record, exists := l.modules.manifest[key]
+
+			if !exists {
+				// Should never happen, since otherwise moduleWalkerLoader would've
+				// returned an error and we would've returned already.
+				panic(fmt.Sprintf("module %s is not present in manifest", key))
+			}
+
+			// Assuming we have configuration data available here, which might need to be passed down or managed differently
+			configData := map[string][]byte{} // Populate this map appropriately based on your application's logic
+			addDiags := l.addModuleToSnapshotFromConfig(snap, key, configData, record.SourceAddr, record.Version)
+			diags = append(diags, addDiags...)
+
+			return mod, v, diags
+		},
+	)
+}
+
 func (l *Loader) addModuleToSnapshot(snap *Snapshot, key string, dir string, sourceAddr string, v *version.Version) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
@@ -197,6 +253,35 @@ func (l *Loader) addModuleToSnapshot(snap *Snapshot, key string, dir string, sou
 			continue
 		}
 		snapMod.Files[filepath.Clean(filename)] = src
+	}
+
+	snap.Modules[key] = snapMod
+
+	return diags
+}
+
+func (l *Loader) addModuleToSnapshotFromConfig(snap *Snapshot, key string, configData map[string][]byte, sourceAddr string, v *version.Version) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	if configData == nil {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "No configuration data provided",
+			Detail:   "Expected configuration data to create snapshot, but none was provided.",
+		})
+		return diags
+	}
+
+	snapMod := &SnapshotModule{
+		Dir:        "", // Directory might not be relevant in this context
+		Files:      map[string][]byte{},
+		SourceAddr: sourceAddr,
+		Version:    v,
+	}
+
+	// Directly use the provided configuration data
+	for filename, content := range configData {
+		snapMod.Files[filename] = content
 	}
 
 	snap.Modules[key] = snapMod
