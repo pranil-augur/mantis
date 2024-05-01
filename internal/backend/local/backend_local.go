@@ -145,7 +145,6 @@ func (b *Local) localRun(op *backend.Operation) (*backend.LocalRun, *configload.
 func (b *Local) localRunDirect(op *backend.Operation, run *backend.LocalRun, coreOpts *tofu.ContextOpts, s statemgr.Full) (*backend.LocalRun, *configload.Snapshot, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
-	fmt.Println("--------This is being loaded in backend_local.go:localRunDirect ----")
 	// Load the configuration using the caller-provided configuration loader.
 	var config *configs.Config
 	var configDiags hcl.Diagnostics
@@ -258,7 +257,6 @@ func (b *Local) localRunForPlanFile(op *backend.Operation, pf *planfile.Reader, 
 		))
 		return nil, snap, diags
 	}
-	fmt.Println("--------This is being loaded in backend_local.go:localRunForPlanFile ----")
 	loader := configload.NewLoaderFromSnapshot(snap)
 	config, configDiags := loader.LoadConfig(snap.Modules[""].Dir)
 	diags = diags.Append(configDiags)

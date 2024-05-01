@@ -114,6 +114,5 @@ func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
 	}
 
 	fmt.Println("Result status: ", op.Result.ExitStatus())
-	fmt.Println(op.State)
 	return op.State, nil
 }

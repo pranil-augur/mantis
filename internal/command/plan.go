@@ -34,7 +34,6 @@ func (c *PlanCommand) RunAPI(rawArgs []string, configScript []byte, configFmt st
 	c.Meta.color = !common.NoColor
 	c.Meta.Color = c.Meta.color
 
-	fmt.Println("Raw arguments:", rawArgs)
 	// Parse and validate flags
 	args, diags := arguments.ParsePlan(rawArgs)
 
@@ -82,7 +81,6 @@ func (c *PlanCommand) RunAPI(rawArgs []string, configScript []byte, configFmt st
 		return nil, fmt.Errorf("an error occurred: %v", diags)
 	}
 
-	fmt.Println("Prepare backend")
 	// Prepare the backend with the backend-specific arguments
 	be, beDiags := c.PrepareBackend(args.State, args.ViewType, enc)
 	diags = diags.Append(beDiags)
@@ -91,7 +89,6 @@ func (c *PlanCommand) RunAPI(rawArgs []string, configScript []byte, configFmt st
 		return nil, fmt.Errorf("an error occurred: %v", diags)
 	}
 
-	fmt.Println("Build operation backend")
 	// Build the operation request
 	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation, args.OutPath, args.GenerateConfigPath, enc, c.ConfigDetails)
 	diags = diags.Append(opDiags)
@@ -100,7 +97,6 @@ func (c *PlanCommand) RunAPI(rawArgs []string, configScript []byte, configFmt st
 		return nil, fmt.Errorf("an error occurred: %v", diags)
 	}
 
-	fmt.Println("Gather variables ")
 	// Collect variable value and add them to the operation request
 	diags = diags.Append(c.GatherVariables(opReq, args.Vars))
 	if diags.HasErrors() {
@@ -141,7 +137,6 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	c.Meta.color = !common.NoColor
 	c.Meta.Color = c.Meta.color
 
-	fmt.Println("Raw arguments:", rawArgs)
 	// Parse and validate flags
 	args, diags := arguments.ParsePlan(rawArgs)
 
