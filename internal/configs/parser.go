@@ -103,7 +103,7 @@ func (p *Parser) LoadHCLFile(path string) (hcl.Body, hcl.Diagnostics) {
 //
 // The content will be parsed using the specified format type: HCL native syntax, HCL JSON syntax,
 // or CUE syntax.
-func (p *Parser) LoadHCLString(content string, formatType string) (hcl.Body, hcl.Diagnostics) {
+func (p *Parser) LoadHCLString(content []byte, formatType string) (hcl.Body, hcl.Diagnostics) {
 	var file *hcl.File
 	var diags hcl.Diagnostics
 
@@ -111,7 +111,7 @@ func (p *Parser) LoadHCLString(content string, formatType string) (hcl.Body, hcl
 	case "json":
 		file, diags = p.p.ParseJSON([]byte(content), "input.json")
 	case "cue":
-		fmt.Println("Parsing CUE content as string with content:", content)
+		fmt.Println("Parsing CUE content as string with content:", string(content))
 		// Assuming LoadCUEDir can be adapted to handle string content directly for CUE format
 		file, diags = p.LoadCUEString(content)
 	default:
@@ -128,9 +128,9 @@ func (p *Parser) LoadHCLString(content string, formatType string) (hcl.Body, hcl
 }
 
 // LoadCUEString is a helper method to parse CUE content from a string and convert it to HCL via JSON.
-func (p *Parser) LoadCUEString(content string) (*hcl.File, hcl.Diagnostics) {
+func (p *Parser) LoadCUEString(content []byte) (*hcl.File, hcl.Diagnostics) {
 	c := cuecontext.New()
-	instance := c.CompileString(content)
+	instance := c.CompileBytes(content)
 	if instance.Err() != nil {
 		return nil, hcl.Diagnostics{
 			{
@@ -140,10 +140,8 @@ func (p *Parser) LoadCUEString(content string) (*hcl.File, hcl.Diagnostics) {
 			},
 		}
 	}
-	cueformValue := instance.LookupPath(cue.ParsePath("cueform"))
-
 	// Convert the CUE instance to JSON
-	jsonBytes, err := cueformValue.MarshalJSON()
+	jsonBytes, err := instance.MarshalJSON()
 	if err != nil {
 		return nil, hcl.Diagnostics{
 			{
@@ -153,11 +151,17 @@ func (p *Parser) LoadCUEString(content string) (*hcl.File, hcl.Diagnostics) {
 			},
 		}
 	}
-
+	fmt.Println("JSON Bytes:", string(jsonBytes))
 	// Parse the JSON as HCL
 	file, diags := p.p.ParseJSON(jsonBytes, "input.json")
 	if diags.HasErrors() {
-		return nil, diags
+		return nil, hcl.Diagnostics{
+			{
+				Severity: hcl.DiagError,
+				Summary:  "Failed to parse from json",
+				Detail:   fmt.Sprintf("Error compiling HCL from json: %v", diags),
+			},
+		}
 	}
 
 	return file, nil
@@ -232,13 +236,7 @@ func (p *Parser) LoadCUEDir(path string) (*hcl.File, hcl.Diagnostics) {
 	}
 
 	// Assuming 'blueprint' is a top-level field in your CUE structure
-	cueformValue := mergedInstance.LookupPath(cue.ParsePath("cueform"))
-	if !cueformValue.Exists() {
-		log.Fatalf("cueform tag not found in CUE instance")
-	}
-
-	// Convert the merged CUE instance to JSON
-	jsonBytes, err := cueformValue.MarshalJSON()
+	jsonBytes, err := mergedInstance.MarshalJSON()
 	if err != nil {
 		return &hcl.File{}, hcl.Diagnostics{
 			{

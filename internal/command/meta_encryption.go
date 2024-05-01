@@ -21,20 +21,6 @@ func (m *Meta) Encryption() (encryption.Encryption, tfdiags.Diagnostics) {
 	return m.EncryptionFromPath(path)
 }
 
-func (m *Meta) EncryptionFromString(configStr string, configFmt string) (encryption.Encryption, tfdiags.Diagnostics) {
-	// This is not ideal, but given how fragmented the command package is, loading the root module here is our best option
-	// See other meta commands like version check which do that same.
-	path, _ := os.Getwd()
-
-	module, diags := m.loadSingleModuleString(configStr, path, configFmt)
-	if diags.HasErrors() {
-		return nil, diags
-	}
-	enc, encDiags := m.EncryptionFromModule(module)
-	diags = diags.Append(encDiags)
-	return enc, diags
-}
-
 func (m *Meta) EncryptionFromPath(path string) (encryption.Encryption, tfdiags.Diagnostics) {
 	// This is not ideal, but given how fragmented the command package is, loading the root module here is our best option
 	// See other meta commands like version check which do that same.

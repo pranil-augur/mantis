@@ -2,16 +2,10 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build-my-project",
+            "label": "build_flowrunner",
             "type": "shell",
-            "command": "GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o tofu -v -buildvcs=false ./cmd/tofu",
-            "problemMatcher": []
-        },
-        {
-            "label": "run_tofu_in_temp",
-            "type": "shell",
-            "command": "./run_tofu.sh",
-            "problemMatcher": []
+            "command": "cd /Users/pdasika/opensource/opentofu/internal/hof/flow/main; GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o flowrunner",            
+            "problemMatcher": [],
         }
     ]
 }

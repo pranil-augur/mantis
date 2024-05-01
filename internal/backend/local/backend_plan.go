@@ -29,6 +29,7 @@ func (b *Local) opPlan(
 	runningOp *backend.RunningOperation) {
 
 	log.Printf("[INFO] backend/local: starting Plan operation")
+	fmt.Printf("[INFO] backend/local: starting Plan operation")
 
 	var diags tfdiags.Diagnostics
 
@@ -119,6 +120,7 @@ func (b *Local) opPlan(
 		return
 	}
 	log.Printf("[INFO] backend/local: plan operation completed")
+	fmt.Printf("[INFO] backend/local: plan operation completed")
 
 	// NOTE: We intentionally don't stop here on errors because we always want
 	// to try to present a partial plan report and, if the user chose to,

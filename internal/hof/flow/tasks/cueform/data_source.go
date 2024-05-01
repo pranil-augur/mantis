@@ -11,40 +11,49 @@
 package cueform
 
 import (
+	"context"
 	"fmt"
-	"os"
 
 	"cuelang.org/go/cue"
 	"github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-svchost/disco"
 	"github.com/mitchellh/cli"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/command"
 	"github.com/opentofu/opentofu/internal/command/cliconfig"
-	"github.com/opentofu/opentofu/internal/command/views"
 	"github.com/opentofu/opentofu/internal/getproviders"
 	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 	"github.com/opentofu/opentofu/internal/terminal"
+	"github.com/opentofu/opentofu/internal/utils"
 )
 
 // TerraformDataSourceTask is a task for running a Terraform plan using a specific configuration
 type TerraformDataSourceTask struct {
-	Provider       provider.Provider
-	ConfigFilePath string
 }
 
 // Assuming Ui is a global variable of type cli.Ui
 var Ui cli.Ui
 
-func NewTerraformDataSourceTask(val cue.Value, configFilePath string) (hofcontext.Runner, error) {
-	return &TerraformDataSourceTask{
-		Provider:       provider,
-		ConfigFilePath: configFilePath,
-	}, nil
+func NewTerraformDataSourceTask(val cue.Value) (hofcontext.Runner, error) {
+	return &TerraformDataSourceTask{}, nil
 }
 
 func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
+	v := ctx.Value
+	script := v.LookupPath(cue.ParsePath("script"))
+	jsonScript, err := script.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling script to JSON: %v", err)
+	}
+	scriptStr := string(jsonScript)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving script as string: %v", err)
+	}
+	// Serialize JSON string to bytes
+	scriptBytes := []byte(scriptStr)
+	if len(scriptBytes) == 0 {
+		return nil, fmt.Errorf("serialized JSON is empty")
+	}
 	// Load configuration
 	config, diags := cliconfig.LoadConfig()
 	if diags.HasErrors() {
@@ -67,31 +76,35 @@ func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
 		return nil, fmt.Errorf("failed to initialize terminal: %v", err)
 	}
 
+	var std_ctx context.Context
 	// Initialize commands
-	initCommands(ctx.Context, "", streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders)
-
-	originalWd, err := os.Getwd()
-	wd := workingDir(originalWd, os.Getenv("TF_DATA_DIR"))
-
-	// Setup the environment for running the PlanCommand
-	meta := command.Meta{
-		WorkingDir: wd,
-		Streams:    streams,
-		View:       views.NewView(streams),
-		Ui:         Ui,
+	commandsFactory := utils.InitCommandsWrapper(std_ctx, "", streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders, scriptBytes)
+	// Retrieve the 'plan' command from the commandsFactory using the appropriate key
+	planCommandFactory, exists := commandsFactory["plan"]
+	if !exists {
+		return nil, fmt.Errorf("plan command not found in commands factory")
 	}
 
-	// Initialize the PlanCommand with the meta configuration
-	planCommand := &command.PlanCommand{
-		Meta: meta,
+	// Generate the plan command using the factory
+	planCommandInterface, err := planCommandFactory()
+	if err != nil {
+		return nil, fmt.Errorf("error generating plan command: %v", err)
+	}
+
+	// Assert the type of the command to *command.PlanCommand
+	planCommand, ok := planCommandInterface.(*command.PlanCommand)
+	if !ok {
+		return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
 	}
 
 	// Execute the PlanCommand with the configuration file path
-	exitStatus := planCommand.Run([]string{t.ConfigFilePath})
-	if exitStatus != 0 {
-		return nil, fmt.Errorf("failed to execute plan command with exit status %d", exitStatus)
+	// planCommand.Meta.ConfigByteArray = scriptBytes
+	op, err := planCommand.RunAPI([]string{}, scriptBytes, "cue")
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute plan command with exit status %d", err)
 	}
 
-	fmt.Println("Plan command executed successfully.")
-	return "Plan executed successfully", nil
+	fmt.Println("Result status: ", op.Result.ExitStatus())
+	fmt.Println(op.State)
+	return op.State, nil
 }

@@ -90,22 +90,14 @@ func (m *Meta) loadSingleModule(dir string) (*configs.Module, tfdiags.Diagnostic
 		return nil, diags
 	}
 
-	module, hclDiags := loader.Parser().LoadConfigDir(dir)
-	diags = diags.Append(hclDiags)
-	return module, diags
-}
-
-func (m *Meta) loadSingleModuleString(configstr string, currentDir string, configFmt string) (*configs.Module, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
-	dir := m.normalizePath(currentDir)
-
-	loader, err := m.initConfigLoader()
-	if err != nil {
-		diags = diags.Append(err)
-		return nil, diags
+	var module *configs.Module
+	var hclDiags hcl.Diagnostics
+	if m.ConfigByteArray != nil {
+		module, hclDiags = loader.Parser().LoadConfigFromStr(m.ConfigByteArray, dir, "json")
+	} else {
+		module, hclDiags = loader.Parser().LoadConfigDir(dir)
 	}
 
-	module, hclDiags := loader.Parser().LoadConfigFromStr(configstr, dir, configFmt)
 	diags = diags.Append(hclDiags)
 	return module, diags
 }

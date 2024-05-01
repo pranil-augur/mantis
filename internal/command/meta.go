@@ -75,6 +75,10 @@ type Meta struct {
 
 	View *views.View
 
+	// This is used in RunAPI mode where config is passed as []byte from the client
+	// instead of reading from the directory
+	ConfigByteArray []byte
+
 	Color            bool     // True if output should be colored
 	GlobalPluginDirs []string // Additional paths to search for plugins
 	Ui               cli.Ui   // Ui for output

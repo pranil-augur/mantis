@@ -58,7 +58,7 @@ func (p *Parser) LoadConfigDir(path string) (*Module, hcl.Diagnostics) {
 }
 
 // LoadConfigFromStr reads the configuration from a string and behaves similarly to LoadConfigDir.
-func (p *Parser) LoadConfigFromStr(configStr string, currentDir string, cfgFmt string) (*Module, hcl.Diagnostics) {
+func (p *Parser) LoadConfigFromStr(configStr []byte, currentDir string, cfgFmt string) (*Module, hcl.Diagnostics) {
 	// Simulate reading files from a directory by parsing the configuration string
 	primary, primaryDiags := p.loadConfigFromString(configStr, cfgFmt, false)
 	override, overrideDiags := p.loadConfigFromString(configStr, cfgFmt, true)

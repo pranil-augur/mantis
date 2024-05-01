@@ -7,8 +7,6 @@ package command
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/opentofu/opentofu/internal/backend"
@@ -24,6 +22,113 @@ type PlanCommand struct {
 	Meta
 }
 
+func (c *PlanCommand) RunAPI(rawArgs []string, configScript []byte, configFmt string) (*backend.RunningOperation, error) {
+	// Parse and apply global view arguments
+	common, rawArgs := arguments.ParseView(rawArgs)
+	c.View.Configure(common)
+
+	// Propagate -no-color for legacy use of Ui.  The remote backend and
+	// cloud package use this; it should be removed when/if they are
+	// migrated to views.
+	c.Meta.color = !common.NoColor
+	c.Meta.Color = c.Meta.color
+
+	fmt.Println("Raw arguments:", rawArgs)
+	// Parse and validate flags
+	args, diags := arguments.ParsePlan(rawArgs)
+
+	// Instantiate the view, even if there are flag errors, so that we render
+	// diagnostics according to the desired view
+	view := views.NewPlan(args.ViewType, c.View)
+
+	if diags.HasErrors() {
+		view.Diagnostics(diags)
+		view.HelpPrompt()
+		return nil, fmt.Errorf("encountered an error processing the plan: %v", diags)
+	}
+
+	// Check for user-supplied plugin path
+	var err error
+	if c.pluginPath, err = c.loadPluginPath(); err != nil {
+		diags = diags.Append(err)
+		view.Diagnostics(diags)
+		return nil, fmt.Errorf("encountered an error processing the plan: %v", diags)
+	}
+
+	// FIXME: the -input flag value is needed to initialize the backend and the
+	// operation, but there is no clear path to pass this value down, so we
+	// continue to mutate the Meta object state for now.
+	c.Meta.input = args.InputEnabled
+
+	// FIXME: the -parallelism flag is used to control the concurrency of
+	// OpenTofu operations. At the moment, this value is used both to
+	// initialize the backend via the ContextOpts field inside CLIOpts, and to
+	// set a largely unused field on the Operation request. Again, there is no
+	// clear path to pass this value down, so we continue to mutate the Meta
+	// object state for now.
+	c.Meta.parallelism = args.Operation.Parallelism
+
+	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
+	// Load main.tf.cue file from the file system as configStr
+
+	fmt.Println("Configuration String Loaded:", string(configScript))
+	// Load the encryption configuration
+	enc, encDiags := c.Encryption()
+
+	diags = diags.Append(encDiags)
+	if encDiags.HasErrors() {
+		view.Diagnostics(diags)
+		return nil, fmt.Errorf("an error occurred: %v", diags)
+	}
+
+	fmt.Println("Prepare backend")
+	// Prepare the backend with the backend-specific arguments
+	be, beDiags := c.PrepareBackend(args.State, args.ViewType, enc)
+	diags = diags.Append(beDiags)
+	if diags.HasErrors() {
+		view.Diagnostics(diags)
+		return nil, fmt.Errorf("an error occurred: %v", diags)
+	}
+
+	fmt.Println("Build operation backend")
+	// Build the operation request
+	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation, args.OutPath, args.GenerateConfigPath, enc)
+	diags = diags.Append(opDiags)
+	if diags.HasErrors() {
+		view.Diagnostics(diags)
+		return nil, fmt.Errorf("an error occurred: %v", diags)
+	}
+
+	fmt.Println("Gather variables ")
+	// Collect variable value and add them to the operation request
+	diags = diags.Append(c.GatherVariables(opReq, args.Vars))
+	if diags.HasErrors() {
+		view.Diagnostics(diags)
+		return nil, fmt.Errorf("an error occurred: %v", diags)
+	}
+
+	// Before we delegate to the backend, we'll print any warning diagnostics
+	// we've accumulated here, since the backend will start fresh with its own
+	// diagnostics.
+	view.Diagnostics(diags)
+	diags = nil
+
+	// Perform the operation
+	// Perform the operation
+	op, err := c.RunOperation(be, opReq)
+	if err != nil {
+		diags = diags.Append(err)
+		view.Diagnostics(diags)
+		fmt.Println("Operation failed")
+	}
+
+	if op.Result != backend.OperationSuccess {
+		fmt.Println("Operation failed")
+	}
+
+	return op, err
+}
+
 func (c *PlanCommand) Run(rawArgs []string) int {
 	// Parse and apply global view arguments
 	common, rawArgs := arguments.ParseView(rawArgs)
@@ -35,6 +140,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	c.Meta.color = !common.NoColor
 	c.Meta.Color = c.Meta.color
 
+	fmt.Println("Raw arguments:", rawArgs)
 	// Parse and validate flags
 	args, diags := arguments.ParsePlan(rawArgs)
 
@@ -70,25 +176,8 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	c.Meta.parallelism = args.Operation.Parallelism
 
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
-	// Load main.tf.cue file from the file system as configStr
-	configFilePath := "main.tf.cue"
-	cwd, err := os.Getwd()
-	if err != nil {
-		diags = diags.Append(fmt.Errorf("failed to get current working directory: %w", err))
-		view.Diagnostics(diags)
-		return 1
-	}
-	configFilePath = filepath.Join(cwd, configFilePath)
-	configStr, readErr := os.ReadFile(configFilePath)
-	if readErr != nil {
-		diags = diags.Append(fmt.Errorf("failed to read the file %s: %w", configFilePath, readErr))
-		view.Diagnostics(diags)
-		return 1
-	}
-
-	fmt.Println("Configuration String Loaded:", string(configStr))
 	// Load the encryption configuration
-	enc, encDiags := c.EncryptionFromString(string(configStr), "cue")
+	enc, encDiags := c.Encryption()
 
 	diags = diags.Append(encDiags)
 	if encDiags.HasErrors() {

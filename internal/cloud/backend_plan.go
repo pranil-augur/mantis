@@ -22,6 +22,7 @@ import (
 
 	tfe "github.com/hashicorp/go-tfe"
 	version "github.com/hashicorp/go-version"
+	"github.com/hashicorp/hcl/v2"
 
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/cloud/cloudplan"
@@ -254,6 +255,14 @@ in order to capture the filesystem context the remote workspace expects:
 		for _, addr := range op.ForceReplace {
 			runOptions.ReplaceAddrs = append(runOptions.ReplaceAddrs, addr.String())
 		}
+	}
+
+	var config configs.Config
+	var configDiags hcl.Diagnostics
+	if op.UseConfigScript {
+		config, _, configDiags = op.ConfigLoader.LoadConfigScriptWithSnapshot(op.ConfigScript)
+	} else {
+		config, _, configDiags = op.ConfigLoader.LoadConfigWithSnapshot(op.ConfigDir)
 	}
 
 	config, _, configDiags := op.ConfigLoader.LoadConfigWithSnapshot(op.ConfigDir)
