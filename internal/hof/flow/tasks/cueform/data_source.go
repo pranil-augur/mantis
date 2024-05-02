@@ -79,10 +79,9 @@ func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
 
 	var std_ctx context.Context
 
-	_, taskPath := v.ReferencePath()
-
+	taskPath := ctx.BaseTask.ID
 	configDetails := &configs.MicroConfig{
-		Identifier: taskPath.String(),
+		Identifier: taskPath,
 		Content:    scriptBytes,
 		Format:     "json",
 	}
@@ -114,5 +113,6 @@ func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
 	}
 
 	fmt.Println("Result status: ", op.Result.ExitStatus())
+	fmt.Println(op.State)
 	return op.State, nil
 }
