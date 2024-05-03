@@ -2,9 +2,9 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build_flowrunner",
+            "label": "build_cuestack",
             "type": "shell",
-            "command": "cd /Users/pdasika/opensource/opentofu/internal/hof/flow/main; GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o flowrunner",            
+            "command": "cd /Users/pdasika/opensource/opentofu/internal/hof/flow/main; GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o cuestack",            
             "problemMatcher": [],
         }
     ]
