@@ -88,8 +88,6 @@ func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
 	}
 	// Initialize commands
 	commandsFactory := utils.InitCommandsWrapper(std_ctx, "", streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders, configDetails)
-	fmt.Printf("Preview value %t\n", ctx.Preview)
-	fmt.Printf("Apply value %t\n", ctx.Apply)
 	if ctx.Preview {
 		// Retrieve the 'plan' command from the commandsFactory using the appropriate key
 		planCommandFactory, exists := commandsFactory["plan"]

@@ -105,6 +105,8 @@ func Copy(ctx *Context) *Context {
 		TaskRegistry: ctx.TaskRegistry,
 		Tasks:        ctx.Tasks,
 		Pools:        ctx.Pools,
+		Apply:        ctx.Apply,
+		Preview:      ctx.Preview,
 	}
 }
 

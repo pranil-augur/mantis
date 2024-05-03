@@ -19,15 +19,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func main() {
-	rootCmd := &cobra.Command{Use: "cuestack"}
-	rootCmd.AddCommand(runCmd)
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
-		os.Exit(1)
-	}
-}
-
+var rootCmd = &cobra.Command{Use: "cuestack"}
 var runCmd = &cobra.Command{
 	Use:   "run [path]",
 	Short: "Run a cue flow from a file or directory",
@@ -36,12 +28,32 @@ var runCmd = &cobra.Command{
 	Run:   runFlowFromFileOrDir,
 }
 
+var rflags flags.RootPflagpole
+
+func init() {
+	// Initialize flags using the function from root.go
+	// flags.SetupRootPflags(rootCmd.PersistentFlags(), &rflags)
+	rootCmd.PersistentFlags().BoolVarP(&rflags.Preview, "preview", "P", false, "preview the changes to the state")
+	rootCmd.PersistentFlags().BoolVarP(&rflags.Apply, "apply", "A", false, "apply the proposed state")
+	rootCmd.AddCommand(runCmd)
+}
+
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func runFlowFromFileOrDir(cmd *cobra.Command, args []string) {
+
+	fmt.Printf("Preview value: %t\n", rflags.Preview)
+	fmt.Printf("Apply value: %t\n", rflags.Apply)
+
 	// Assuming args[0] is the path to the file or directory containing the flow
 	flowPath := args[0]
 
-	// Prepare the runtime with default flags
-	rflags := flags.RootPflagpole{}
+	// Prepare the runtime with initialized flags
 	cflags := flags.FlowPflagpole{}
 
 	// Convert the flowPath into a format that can be passed to Run
