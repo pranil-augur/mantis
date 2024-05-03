@@ -40,6 +40,8 @@ type Context struct {
 
 	// debug / internal
 	Verbosity int
+	Preview   bool
+	Apply     bool
 
 	Middlewares  []Middleware
 	TaskRegistry *sync.Map

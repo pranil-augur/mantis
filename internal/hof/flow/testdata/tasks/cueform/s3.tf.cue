@@ -30,7 +30,7 @@ tasks: {
 	@flow(s3_setup)
 
 	setup: {
-		@task(cueform.TerraformDataSourceTask)
+	@task(cueform.DS)
 		script: #s3BucketConfig
 	}
 

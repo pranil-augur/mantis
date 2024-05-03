@@ -33,6 +33,8 @@ type RootPflagpole struct {
 	Stats        bool
 	Quiet        bool
 	Verbosity    int
+	Preview      bool
+	Apply        bool
 }
 
 func SetupRootPflags(fset *pflag.FlagSet, fpole *RootPflagpole) {
@@ -52,6 +54,8 @@ func SetupRootPflags(fset *pflag.FlagSet, fpole *RootPflagpole) {
 	fset.BoolVarP(&(fpole.Stats), "stats", "", false, "print generator statistics")
 	fset.BoolVarP(&(fpole.Quiet), "quiet", "q", false, "turn off output and assume defaults at prompts")
 	fset.IntVarP(&(fpole.Verbosity), "verbosity", "v", 0, "set the verbosity of output")
+	fset.BoolVarP(&(fpole.Preview), "preview", "P", true, "preview the changes to the state")
+	fset.BoolVarP(&(fpole.Apply), "apply", "A", true, "apply the proposed state")
 }
 
 var RootPflags RootPflagpole

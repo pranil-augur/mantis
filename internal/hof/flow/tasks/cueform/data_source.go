@@ -88,37 +88,73 @@ func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
 	}
 	// Initialize commands
 	commandsFactory := utils.InitCommandsWrapper(std_ctx, "", streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders, configDetails)
-	// Retrieve the 'plan' command from the commandsFactory using the appropriate key
-	planCommandFactory, exists := commandsFactory["plan"]
-	if !exists {
-		return nil, fmt.Errorf("plan command not found in commands factory")
+	fmt.Printf("Preview value %t\n", ctx.Preview)
+	fmt.Printf("Apply value %t\n", ctx.Apply)
+	if ctx.Preview {
+		// Retrieve the 'plan' command from the commandsFactory using the appropriate key
+		planCommandFactory, exists := commandsFactory["plan"]
+		if !exists {
+			return nil, fmt.Errorf("plan command not found in commands factory")
+		}
+
+		// Generate the plan command using the factory
+		planCommandInterface, err := planCommandFactory()
+		if err != nil {
+			return nil, fmt.Errorf("error generating plan command: %v", err)
+		}
+
+		// Assert the type of the command to *command.PlanCommand
+		planCommand, ok := planCommandInterface.(*command.PlanCommand)
+		if !ok {
+			return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
+		}
+		// Execute the PlanCommand with the configuration file path
+		// planCommand.Meta.ConfigByteArray = scriptBytes
+		var parsedVariables *map[string]map[string]cty.Value = &map[string]map[string]cty.Value{}
+		// Create a new TFContext with the parsedVariables
+		tfContext := hofcontext.NewTFContext(parsedVariables)
+
+		_, err = planCommand.RunAPI([]string{}, tfContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute plan command with exit status %d", err)
+		}
+		v.FillPath(cue.ParsePath("out"), parsedVariables)
+		// Attempt to fill the path with the new value
+		newV := v.FillPath(cue.ParsePath("out"), parsedVariables)
+
+		return newV, nil
+	} else {
+		// Retrieve the 'plan' command from the commandsFactory using the appropriate key
+		applyCommandFactory, exists := commandsFactory["apply"]
+		if !exists {
+			return nil, fmt.Errorf("plan command not found in commands factory")
+		}
+
+		// Generate the plan command using the factory
+		applyCommandInterface, err := applyCommandFactory()
+		if err != nil {
+			return nil, fmt.Errorf("error generating plan command: %v", err)
+		}
+
+		// Assert the type of the command to *command.PlanCommand
+		applyCommand, ok := applyCommandInterface.(*command.ApplyCommand)
+		if !ok {
+			return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
+		}
+		// Execute the PlanCommand with the configuration file path
+		// planCommand.Meta.ConfigByteArray = scriptBytes
+		var parsedVariables *map[string]map[string]cty.Value = &map[string]map[string]cty.Value{}
+		// Create a new TFContext with the parsedVariables
+		tfContext := hofcontext.NewTFContext(parsedVariables)
+
+		_, err = applyCommand.RunAPI([]string{}, tfContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute plan command with exit status %d", err)
+		}
+		v.FillPath(cue.ParsePath("out"), parsedVariables)
+		// Attempt to fill the path with the new value
+		newV := v.FillPath(cue.ParsePath("out"), parsedVariables)
+
+		return newV, nil
 	}
-
-	// Generate the plan command using the factory
-	planCommandInterface, err := planCommandFactory()
-	if err != nil {
-		return nil, fmt.Errorf("error generating plan command: %v", err)
-	}
-
-	// Assert the type of the command to *command.PlanCommand
-	planCommand, ok := planCommandInterface.(*command.PlanCommand)
-	if !ok {
-		return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
-	}
-
-	// Execute the PlanCommand with the configuration file path
-	// planCommand.Meta.ConfigByteArray = scriptBytes
-	var parsedVariables *map[string]map[string]cty.Value = &map[string]map[string]cty.Value{}
-	// Create a new TFContext with the parsedVariables
-	tfContext := hofcontext.NewTFContext(parsedVariables)
-
-	_, err = planCommand.RunAPI([]string{}, tfContext)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute plan command with exit status %d", err)
-	}
-	v.FillPath(cue.ParsePath("out"), parsedVariables)
-	// Attempt to fill the path with the new value
-	newV := v.FillPath(cue.ParsePath("out"), parsedVariables)
-
-	return newV, nil
 }

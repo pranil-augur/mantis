@@ -20,7 +20,7 @@ import (
 )
 
 func main() {
-	rootCmd := &cobra.Command{Use: "flowrunner"}
+	rootCmd := &cobra.Command{Use: "cuestack"}
 	rootCmd.AddCommand(runCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing command: %v\n", err)

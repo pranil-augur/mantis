@@ -12,7 +12,9 @@ import (
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/encryption"
+	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 	"github.com/opentofu/opentofu/internal/plans/planfile"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
@@ -27,6 +29,140 @@ type ApplyCommand struct {
 	Destroy bool
 }
 
+func (c *ApplyCommand) RunAPI(rawArgs []string, tfContext *hofcontext.TFContext) (*backend.RunningOperation, error) {
+	var diags tfdiags.Diagnostics
+
+	// Parse and apply global view arguments
+	common, rawArgs := arguments.ParseView(rawArgs)
+	c.View.Configure(common)
+
+	// Propagate -no-color for legacy use of Ui.  The remote backend and
+	// cloud package use this; it should be removed when/if they are
+	// migrated to views.
+	c.Meta.color = !common.NoColor
+	c.Meta.Color = c.Meta.color
+
+	// Parse and validate flags
+	var args *arguments.Apply
+	switch {
+	case c.Destroy:
+		args, diags = arguments.ParseApplyDestroy(rawArgs)
+	default:
+		args, diags = arguments.ParseApply(rawArgs)
+	}
+
+	// Instantiate the view, even if there are flag errors, so that we render
+	// diagnostics according to the desired view
+	view := views.NewApply(args.ViewType, c.Destroy, c.View)
+
+	if diags.HasErrors() {
+		view.Diagnostics(diags)
+		view.HelpPrompt()
+		return nil, diags.Err()
+	}
+
+	// Check for user-supplied plugin path
+	var err error
+	if c.pluginPath, err = c.loadPluginPath(); err != nil {
+		diags = diags.Append(err)
+		view.Diagnostics(diags)
+		return nil, diags.Err()
+	}
+
+	// Load the encryption configuration
+	enc, encDiags := c.Encryption()
+	diags = diags.Append(encDiags)
+	if encDiags.HasErrors() {
+		view.Diagnostics(diags)
+		return nil, diags.Err()
+	}
+
+	// Attempt to load the plan file, if specified
+	planFile, diags := c.LoadPlanFile(args.PlanPath, enc)
+	if diags.HasErrors() {
+		view.Diagnostics(diags)
+		return nil, diags.Err()
+	}
+
+	// Check for invalid combination of plan file and variable overrides
+	if planFile != nil && !args.Vars.Empty() {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Can't set variables when applying a saved plan",
+			"The -var and -var-file options cannot be used when applying a saved plan file, because a saved plan includes the variable values that were set when it was created.",
+		))
+		view.Diagnostics(diags)
+		return nil, diags.Err()
+	}
+
+	// FIXME: the -input flag value is needed to initialize the backend and the
+	// operation, but there is no clear path to pass this value down, so we
+	// continue to mutate the Meta object state for now.
+	c.Meta.input = args.InputEnabled
+
+	// FIXME: the -parallelism flag is used to control the concurrency of
+	// OpenTofu operations. At the moment, this value is used both to
+	// initialize the backend via the ContextOpts field inside CLIOpts, and to
+	// set a largely unused field on the Operation request. Again, there is no
+	// clear path to pass this value down, so we continue to mutate the Meta
+	// object state for now.
+	c.Meta.parallelism = args.Operation.Parallelism
+
+	// Prepare the backend, passing the plan file if present, and the
+	// backend-specific arguments
+	be, beDiags := c.PrepareBackend(planFile, args.State, args.ViewType, enc.State())
+	diags = diags.Append(beDiags)
+	if diags.HasErrors() {
+		view.Diagnostics(diags)
+		return nil, diags.Err()
+	}
+
+	// Build the operation request
+	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, planFile,
+		args.Operation, args.AutoApprove, enc, c.Meta.ConfigDetails, tfContext)
+	diags = diags.Append(opDiags)
+
+	// Collect variable value and add them to the operation request
+	diags = diags.Append(c.GatherVariables(opReq, args.Vars))
+
+	// Before we delegate to the backend, we'll print any warning diagnostics
+	// we've accumulated here, since the backend will start fresh with its own
+	// diagnostics.
+	view.Diagnostics(diags)
+	if diags.HasErrors() {
+		return nil, diags.Err()
+	}
+	diags = nil
+
+	// Run the operation
+	op, err := c.RunOperation(be, opReq)
+	if err != nil {
+		diags = diags.Append(err)
+		view.Diagnostics(diags)
+		return nil, diags.Err()
+	}
+
+	if op.Result != backend.OperationSuccess {
+		return op, op.Err()
+	}
+
+	// Render the resource count and outputs, unless those counts are being
+	// rendered already in a remote OpenTofu process.
+	if rb, isRemoteBackend := be.(BackendWithRemoteTerraformVersion); !isRemoteBackend || rb.IsLocalOperations() {
+		view.ResourceCount(args.State.StateOutPath)
+		if !c.Destroy && op.State != nil {
+			view.Outputs(op.State.RootModule().OutputValues)
+		}
+	}
+
+	view.Diagnostics(diags)
+
+	if diags.HasErrors() {
+		return nil, diags.Err()
+	}
+
+	return op, nil
+}
 func (c *ApplyCommand) Run(rawArgs []string) int {
 	var diags tfdiags.Diagnostics
 
@@ -115,8 +251,10 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
+	tfContext := hofcontext.NewTFContext(nil)
 	// Build the operation request
-	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, planFile, args.Operation, args.AutoApprove, enc)
+	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, planFile, args.Operation,
+		args.AutoApprove, enc, c.Meta.ConfigDetails, tfContext)
 	diags = diags.Append(opDiags)
 
 	// Collect variable value and add them to the operation request
@@ -266,6 +404,8 @@ func (c *ApplyCommand) OperationRequest(
 	args *arguments.Operation,
 	autoApprove bool,
 	enc encryption.Encryption,
+	configDetails *configs.MicroConfig,
+	tfContext *hofcontext.TFContext,
 ) (*backend.Operation, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
@@ -286,6 +426,8 @@ func (c *ApplyCommand) OperationRequest(
 	opReq.ForceReplace = args.ForceReplace
 	opReq.Type = backend.OperationTypeApply
 	opReq.View = view.Operation()
+	opReq.ConfigDetails = configDetails
+	opReq.TfContext = tfContext
 
 	var err error
 	opReq.ConfigLoader, err = c.initConfigLoader()
