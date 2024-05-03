@@ -20,6 +20,7 @@ import (
 	"cuelang.org/go/cue"
 
 	"github.com/opentofu/opentofu/internal/hof/flow/task"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // A Context provides context for running a task.
@@ -137,4 +138,16 @@ type Runner interface {
 	// Runner runs given the current value and returns a new value which is to
 	// be unified with the original result.
 	Run(ctx *Context) (results interface{}, err error)
+}
+
+// TFContext is a type that includes ParsedVariables which is a map of string keys to another map of string keys and cty.Value values.
+type TFContext struct {
+	ParsedVariables *map[string]map[string]cty.Value
+}
+
+// NewTFContext is a constructor for TFContext.
+func NewTFContext(parsedVars *map[string]map[string]cty.Value) *TFContext {
+	return &TFContext{
+		ParsedVariables: parsedVars,
+	}
 }

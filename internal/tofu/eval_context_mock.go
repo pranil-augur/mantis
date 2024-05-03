@@ -12,6 +12,7 @@ import (
 	"github.com/opentofu/opentofu/internal/checks"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/encryption"
+	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/lang"
 	"github.com/opentofu/opentofu/internal/plans"
@@ -157,6 +158,7 @@ type MockEvalContext struct {
 
 	InstanceExpanderCalled   bool
 	InstanceExpanderExpander *instances.Expander
+	TfContext                *hofcontext.TFContext
 }
 
 // MockEvalContext implements EvalContext
@@ -181,6 +183,11 @@ func (c *MockEvalContext) Hook(fn func(Hook) (HookAction, error)) error {
 func (c *MockEvalContext) Input() UIInput {
 	c.InputCalled = true
 	return c.InputInput
+}
+
+func (ctx *MockEvalContext) UpdateHofCtxVariables(key string, vars cty.Value) *map[string]map[string]cty.Value {
+	(*ctx.TfContext.ParsedVariables)[key] = vars.AsValueMap()
+	return ctx.TfContext.ParsedVariables
 }
 
 func (c *MockEvalContext) InitProvider(addr addrs.AbsProviderConfig) (providers.Interface, error) {

@@ -1727,6 +1727,7 @@ func (n *NodeAbstractResourceInstance) planDataSource(ctx EvalContext, checkRule
 	// can read the data source into the state.
 	newVal, readDiags := n.readDataSource(ctx, configVal)
 
+	ctx.UpdateHofCtxVariables(n.Addr.String(), newVal)
 	// Now we've loaded the data, and diags tells us whether we were successful
 	// or not, we are going to create our plannedChange and our
 	// proposedNewState.
@@ -1926,6 +1927,9 @@ func (n *NodeAbstractResourceInstance) applyDataSource(ctx EvalContext, planned 
 	}
 
 	newVal, readDiags := n.readDataSource(ctx, configVal)
+
+	fmt.Printf("[DEBUG] Existing value from data source: %+v", planned.Before)
+	fmt.Printf("[DEBUG] New value from data source: %+v", newVal)
 	if check, nested := n.nestedInCheckBlock(); nested {
 		addr := check.Addr().Absolute(n.Addr.Module)
 

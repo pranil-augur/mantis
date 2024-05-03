@@ -218,4 +218,6 @@ type EvalContext interface {
 
 	// Returns the currently configured encryption setup
 	GetEncryption() encryption.Encryption
+
+	UpdateHofCtxVariables(key string, vars cty.Value) *map[string]map[string]cty.Value
 }

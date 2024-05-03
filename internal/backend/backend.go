@@ -25,6 +25,7 @@ import (
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/depsfile"
 	"github.com/opentofu/opentofu/internal/encryption"
+	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/plans/planfile"
 	"github.com/opentofu/opentofu/internal/states"
@@ -286,6 +287,7 @@ type Operation struct {
 	Targets      []addrs.Targetable
 	ForceReplace []addrs.AbsResourceInstance
 	Variables    map[string]UnparsedVariableValue
+	TfContext    *hofcontext.TFContext
 
 	// Some operations use root module variables only opportunistically or
 	// don't need them at all. If this flag is set, the backend must treat

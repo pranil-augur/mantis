@@ -77,6 +77,7 @@ func (b *Local) opPlan(
 	if b.ContextOpts == nil {
 		b.ContextOpts = new(tofu.ContextOpts)
 	}
+	b.ContextOpts.TfContext = op.TfContext
 
 	// Get our context
 	lr, configSnap, opState, ctxDiags := b.localRun(op)

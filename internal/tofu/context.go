@@ -12,6 +12,8 @@ import (
 	"sort"
 	"sync"
 
+	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
+
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/encryption"
@@ -45,6 +47,8 @@ type ContextOpts struct {
 	Providers    map[addrs.Provider]providers.Factory
 	Provisioners map[string]provisioners.Factory
 	Encryption   encryption.Encryption
+
+	TfContext *hofcontext.TFContext
 
 	UIInput UIInput
 }
@@ -93,6 +97,7 @@ type Context struct {
 	runContextCancel    context.CancelFunc
 
 	encryption encryption.Encryption
+	TfContext  *hofcontext.TFContext
 }
 
 // (additional methods on Context can be found in context_*.go files.)
@@ -153,6 +158,7 @@ func NewContext(opts *ContextOpts) (*Context, tfdiags.Diagnostics) {
 		sh:                  sh,
 
 		encryption: opts.Encryption,
+		TfContext:  opts.TfContext,
 	}, diags
 }
 

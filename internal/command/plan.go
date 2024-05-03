@@ -14,6 +14,7 @@ import (
 	"github.com/opentofu/opentofu/internal/command/views"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/encryption"
+	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
@@ -23,7 +24,7 @@ type PlanCommand struct {
 	Meta
 }
 
-func (c *PlanCommand) RunAPI(rawArgs []string, configScript []byte, configFmt string) (*backend.RunningOperation, error) {
+func (c *PlanCommand) RunAPI(rawArgs []string, tfContext *hofcontext.TFContext) (*backend.RunningOperation, error) {
 	// Parse and apply global view arguments
 	common, rawArgs := arguments.ParseView(rawArgs)
 	c.View.Configure(common)
@@ -71,7 +72,6 @@ func (c *PlanCommand) RunAPI(rawArgs []string, configScript []byte, configFmt st
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
 	// Load main.tf.cue file from the file system as configStr
 
-	fmt.Println("Configuration String Loaded:", string(configScript))
 	// Load the encryption configuration
 	enc, encDiags := c.Encryption()
 
@@ -90,7 +90,8 @@ func (c *PlanCommand) RunAPI(rawArgs []string, configScript []byte, configFmt st
 	}
 
 	// Build the operation request
-	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation, args.OutPath, args.GenerateConfigPath, enc, c.ConfigDetails)
+	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation,
+		args.OutPath, args.GenerateConfigPath, enc, c.ConfigDetails, tfContext)
 	diags = diags.Append(opDiags)
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
@@ -190,7 +191,8 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	}
 
 	// Build the operation request
-	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation, args.OutPath, args.GenerateConfigPath, enc, &configs.MicroConfig{})
+	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation, args.OutPath,
+		args.GenerateConfigPath, enc, &configs.MicroConfig{}, hofcontext.NewTFContext(nil))
 	diags = diags.Append(opDiags)
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
@@ -262,6 +264,7 @@ func (c *PlanCommand) OperationRequest(
 	generateConfigOut string,
 	enc encryption.Encryption,
 	configDetails *configs.MicroConfig,
+	tfContext *hofcontext.TFContext,
 ) (*backend.Operation, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
@@ -278,6 +281,7 @@ func (c *PlanCommand) OperationRequest(
 	opReq.Type = backend.OperationTypePlan
 	opReq.View = view.Operation()
 	opReq.ConfigDetails = configDetails
+	opReq.TfContext = tfContext
 
 	var err error
 	opReq.ConfigLoader, err = c.initConfigLoader()

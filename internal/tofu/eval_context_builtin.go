@@ -18,6 +18,7 @@ import (
 	"github.com/opentofu/opentofu/internal/checks"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/encryption"
+	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/lang"
 	"github.com/opentofu/opentofu/internal/plans"
@@ -80,6 +81,7 @@ type BuiltinEvalContext struct {
 	MoveResultsValue      refactoring.MoveResults
 	ImportResolverValue   *ImportResolver
 	Encryption            encryption.Encryption
+	TfContext             *hofcontext.TFContext
 }
 
 // BuiltinEvalContext implements EvalContext
@@ -92,6 +94,11 @@ func (ctx *BuiltinEvalContext) WithPath(path addrs.ModuleInstance) EvalContext {
 	newCtx.FunctionCache = nil
 	newCtx.FunctionLock = sync.Mutex{}
 	return &newCtx
+}
+
+func (ctx *BuiltinEvalContext) UpdateHofCtxVariables(key string, vars cty.Value) *map[string]map[string]cty.Value {
+	(*ctx.TfContext.ParsedVariables)[key] = vars.AsValueMap()
+	return ctx.TfContext.ParsedVariables
 }
 
 func (ctx *BuiltinEvalContext) Stopped() <-chan struct{} {

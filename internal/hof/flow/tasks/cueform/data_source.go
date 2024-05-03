@@ -26,6 +26,7 @@ import (
 	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 	"github.com/opentofu/opentofu/internal/terminal"
 	"github.com/opentofu/opentofu/internal/utils"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // TerraformDataSourceTask is a task for running a Terraform plan using a specific configuration
@@ -107,12 +108,17 @@ func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
 
 	// Execute the PlanCommand with the configuration file path
 	// planCommand.Meta.ConfigByteArray = scriptBytes
-	op, err := planCommand.RunAPI([]string{}, scriptBytes, "cue")
+	var parsedVariables *map[string]map[string]cty.Value = &map[string]map[string]cty.Value{}
+	// Create a new TFContext with the parsedVariables
+	tfContext := hofcontext.NewTFContext(parsedVariables)
+
+	_, err = planCommand.RunAPI([]string{}, tfContext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute plan command with exit status %d", err)
 	}
+	v.FillPath(cue.ParsePath("out"), parsedVariables)
+	// Attempt to fill the path with the new value
+	newV := v.FillPath(cue.ParsePath("out"), parsedVariables)
 
-	fmt.Println("Result status: ", op.Result.ExitStatus())
-	fmt.Println(op.State)
-	return op.State, nil
+	return newV, nil
 }

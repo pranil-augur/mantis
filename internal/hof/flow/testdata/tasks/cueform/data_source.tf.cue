@@ -14,16 +14,14 @@ package test
 tasks: {
 	@flow(data_source)
 
-	_conn: data_source: "https://api.example.com/data?api_key=your_api_key"
-
 	fetch: {
-		@task(cueform.TerraformDataSourceTask)
+		@task(cueform.DS)
 		script: #common  
+		out: [string]: string | *{}
 	}
 
-
 	done: {
-		@task(os.Stdout)
-		text: "Data fetching and processing completed.\n"
+		@task(cueform.PrintObj)
+		args: fetch.out 
 	}
 }
