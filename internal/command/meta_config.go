@@ -67,7 +67,13 @@ func (m *Meta) loadConfigWithTests(rootDir, testDir string) (*configs.Config, tf
 		return nil, diags
 	}
 
-	config, hclDiags := loader.LoadConfigWithTests(rootDir, testDir)
+	var config *configs.Config
+	var hclDiags hcl.Diagnostics
+	if m.ConfigDetails != nil {
+		config, hclDiags = loader.LoadConfigFromString(m.ConfigDetails, rootDir)
+	} else {
+		config, hclDiags = loader.LoadConfigWithTests(rootDir, testDir)
+	}
 	diags = diags.Append(hclDiags)
 	return config, diags
 }
@@ -114,7 +120,14 @@ func (m *Meta) loadSingleModuleWithTests(dir string, testDir string) (*configs.M
 		return nil, diags
 	}
 
-	module, hclDiags := loader.Parser().LoadConfigDirWithTests(dir, testDir)
+	var module *configs.Module
+	var hclDiags hcl.Diagnostics
+	if m.ConfigDetails != nil {
+		module, hclDiags = loader.Parser().LoadConfigFromStr(m.ConfigDetails, dir)
+	} else {
+		module, hclDiags = loader.Parser().LoadConfigDirWithTests(dir, testDir)
+	}
+
 	diags = diags.Append(hclDiags)
 	return module, diags
 }

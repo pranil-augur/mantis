@@ -42,6 +42,7 @@ type Context struct {
 	Verbosity int
 	Preview   bool
 	Apply     bool
+	Init      bool
 
 	Middlewares  []Middleware
 	TaskRegistry *sync.Map
@@ -107,6 +108,7 @@ func Copy(ctx *Context) *Context {
 		Pools:        ctx.Pools,
 		Apply:        ctx.Apply,
 		Preview:      ctx.Preview,
+		Init:         ctx.Init,
 	}
 }
 

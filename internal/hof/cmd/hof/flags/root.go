@@ -35,6 +35,7 @@ type RootPflagpole struct {
 	Verbosity    int
 	Preview      bool
 	Apply        bool
+	Init         bool
 }
 
 func SetupRootPflags(fset *pflag.FlagSet, fpole *RootPflagpole) {

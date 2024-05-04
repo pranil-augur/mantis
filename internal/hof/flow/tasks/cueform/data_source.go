@@ -15,6 +15,7 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/terraform-svchost/disco"
 	"github.com/mitchellh/cli"
@@ -121,23 +122,23 @@ func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
 		newV := v.FillPath(cue.ParsePath("out"), parsedVariables)
 
 		return newV, nil
-	} else {
+	} else if ctx.Apply {
 		// Retrieve the 'plan' command from the commandsFactory using the appropriate key
 		applyCommandFactory, exists := commandsFactory["apply"]
 		if !exists {
-			return nil, fmt.Errorf("plan command not found in commands factory")
+			return nil, fmt.Errorf("apply command not found in commands factory")
 		}
 
 		// Generate the plan command using the factory
 		applyCommandInterface, err := applyCommandFactory()
 		if err != nil {
-			return nil, fmt.Errorf("error generating plan command: %v", err)
+			return nil, fmt.Errorf("error generating apply command: %v", err)
 		}
 
 		// Assert the type of the command to *command.PlanCommand
 		applyCommand, ok := applyCommandInterface.(*command.ApplyCommand)
 		if !ok {
-			return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
+			return nil, fmt.Errorf("error asserting command type to *command.ApplyCommand")
 		}
 		// Execute the PlanCommand with the configuration file path
 		// planCommand.Meta.ConfigByteArray = scriptBytes
@@ -147,12 +148,48 @@ func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
 
 		_, err = applyCommand.RunAPI([]string{}, tfContext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to execute plan command with exit status %d", err)
+			return nil, fmt.Errorf("failed to execute apply command with exit status %d", err)
 		}
 		v.FillPath(cue.ParsePath("out"), parsedVariables)
 		// Attempt to fill the path with the new value
 		newV := v.FillPath(cue.ParsePath("out"), parsedVariables)
 
 		return newV, nil
+	} else if ctx.Init {
+		cueContext := cuecontext.New()
+		value := cueContext.CompileString(scriptStr, cue.Filename("input.json"))
+		terraform := value.LookupPath(cue.ParsePath("terraform"))
+		if terraform.Exists() {
+			fmt.Println("Running init with " + scriptStr)
+		} else {
+			fmt.Println("Skipping  init, no terraform" + scriptStr)
+			return nil, nil
+		}
+
+		initCommandFactory, exists := commandsFactory["init"]
+
+		if !exists {
+			return nil, fmt.Errorf("init command not found in commands factory")
+		}
+
+		// Generate the plan command using the factory
+		initCommandInterface, err := initCommandFactory()
+		if err != nil {
+			return nil, fmt.Errorf("error generating init command: %v", err)
+		}
+
+		// Assert the type of the command to *command.PlanCommand
+		initCommand, ok := initCommandInterface.(*command.InitCommand)
+		if !ok {
+			return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
+		}
+
+		retval := initCommand.Run([]string{})
+		if retval < 0 {
+			return nil, fmt.Errorf("Error Initializing")
+		}
+	} else {
+		return nil, fmt.Errorf("Unknown command: ")
 	}
+	return nil, nil
 }

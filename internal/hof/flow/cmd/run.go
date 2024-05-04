@@ -41,6 +41,7 @@ func prepFlow(R *Runtime, val cue.Value) (*flow.Flow, error) {
 	c.Verbosity = R.Flags.Verbosity
 	c.Preview = R.Flags.Preview
 	c.Apply = R.Flags.Apply
+	c.Init = R.Flags.Init
 
 	// how to inject tags into original value
 	// fill / return value

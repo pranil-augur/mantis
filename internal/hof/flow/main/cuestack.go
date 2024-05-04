@@ -35,6 +35,7 @@ func init() {
 	// flags.SetupRootPflags(rootCmd.PersistentFlags(), &rflags)
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Preview, "preview", "P", false, "preview the changes to the state")
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Apply, "apply", "A", false, "apply the proposed state")
+	rootCmd.PersistentFlags().BoolVarP(&rflags.Init, "init", "I", false, "init modules")
 	rootCmd.AddCommand(runCmd)
 }
 
