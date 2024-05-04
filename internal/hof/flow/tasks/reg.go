@@ -40,7 +40,7 @@ func RegisterDefaults(context *hofcontext.Context) {
 	context.Register("cue.Format", cue.NewCueFormat)
 
 	context.Register("db.Call", db.NewCall)
-	context.Register("cueform.DS", cueform.NewTerraformDataSourceTask)
+	context.Register("cueform.TF", cueform.NewTFTask)
 	context.Register("cueform.PrintObj", cueform.NewPrintArgsTask)
 
 	context.Register("hof.Template", hof.NewHofTemplate)

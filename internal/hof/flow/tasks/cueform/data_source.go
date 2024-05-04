@@ -30,18 +30,18 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// TerraformDataSourceTask is a task for running a Terraform plan using a specific configuration
-type TerraformDataSourceTask struct {
+// TFTask is a task for running a Terraform plan using a specific configuration
+type TFTask struct {
 }
 
 // Assuming Ui is a global variable of type cli.Ui
 var Ui cli.Ui
 
-func NewTerraformDataSourceTask(val cue.Value) (hofcontext.Runner, error) {
-	return &TerraformDataSourceTask{}, nil
+func NewTFTask(val cue.Value) (hofcontext.Runner, error) {
+	return &TFTask{}, nil
 }
 
-func (t *TerraformDataSourceTask) Run(ctx *hofcontext.Context) (any, error) {
+func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	v := ctx.Value
 	script := v.LookupPath(cue.ParsePath("script"))
 	jsonScript, err := script.MarshalJSON()

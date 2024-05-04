@@ -30,7 +30,7 @@ tasks: {
 	@flow(s3_setup)
 
 	setup: {
-	@task(cueform.DS)
+	@task(cueform.TF)
 		script: #s3BucketConfig
 	}
 

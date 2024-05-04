@@ -28,6 +28,20 @@ var runCmd = &cobra.Command{
 	Run:   runFlowFromFileOrDir,
 }
 
+var genCmd = &cobra.Command{
+	Use:   "gen <target directory> <package name>",
+	Short: "Generate scaffolding for a new cue module",
+	Long:  `Generate scaffolding for a new cue module in the specified target directory with the given package name.`,
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := runner.Gen(args); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating scaffolding: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Scaffolding generated successfully.")
+	},
+}
+
 var rflags flags.RootPflagpole
 
 func init() {
@@ -37,6 +51,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Apply, "apply", "A", false, "apply the proposed state")
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Init, "init", "I", false, "init modules")
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(genCmd)
 }
 
 func main() {
