@@ -158,11 +158,8 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	} else if ctx.Init {
 		cueContext := cuecontext.New()
 		value := cueContext.CompileString(scriptStr, cue.Filename("input.json"))
-		terraform := value.LookupPath(cue.ParsePath("terraform"))
-		if terraform.Exists() {
-			fmt.Println("Running init with " + scriptStr)
-		} else {
-			fmt.Println("Skipping  init, no terraform" + scriptStr)
+		terraformOrModule := value.LookupPath(cue.ParsePath("terraform")).Exists() || value.LookupPath(cue.ParsePath("module")).Exists()
+		if !terraformOrModule {
 			return nil, nil
 		}
 

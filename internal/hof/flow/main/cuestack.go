@@ -42,6 +42,20 @@ var genCmd = &cobra.Command{
 	},
 }
 
+var importCmd = &cobra.Command{
+	Use:   "import <source directory>",
+	Short: "Import HCL files and convert them into a Cuestack blueprint",
+	Long:  `This command imports HCL files from the specified source directory and converts them into a Cuestack blueprint using OpenAI.`,
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := runner.ImportHCL(args); err != nil {
+			fmt.Fprintf(os.Stderr, "Error importing HCL files: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("HCL files imported and converted successfully.")
+	},
+}
+
 var rflags flags.RootPflagpole
 
 func init() {
@@ -52,6 +66,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Init, "init", "I", false, "init modules")
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(genCmd)
+	rootCmd.AddCommand(importCmd)
 }
 
 func main() {
@@ -62,9 +77,6 @@ func main() {
 }
 
 func runFlowFromFileOrDir(cmd *cobra.Command, args []string) {
-
-	fmt.Printf("Preview value: %t\n", rflags.Preview)
-	fmt.Printf("Apply value: %t\n", rflags.Apply)
 
 	// Assuming args[0] is the path to the file or directory containing the flow
 	flowPath := args[0]

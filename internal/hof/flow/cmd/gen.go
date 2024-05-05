@@ -27,6 +27,7 @@ func Gen(args []string) error {
 		"policies",
 		"schemas",
 		"tests",
+		"flows",
 	}
 
 	// Define files with initial content
@@ -36,13 +37,13 @@ func Gen(args []string) error {
 		"defs/data_sources.cue": `// Data source definitions
 `,
 		"defs/resources.cue": `
-		package defs
+	package defs
 		import "<module_name>/schemas"
 
-eks: schemas.#ModuleVPC & {
-    source:  "terraform-aws-modules/eks/aws"
-    version: "~> 19.16"
-}
+	eks: schemas.#ModuleVPC & {
+		source:  "terraform-aws-modules/eks/aws"
+		version: "~> 19.16"
+	}
 `,
 		"flows.tf.cue": `// Flow definitions
 `,
