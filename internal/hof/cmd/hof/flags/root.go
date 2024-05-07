@@ -36,6 +36,7 @@ type RootPflagpole struct {
 	Preview      bool
 	Apply        bool
 	Init         bool
+	Destroy      bool
 }
 
 func SetupRootPflags(fset *pflag.FlagSet, fpole *RootPflagpole) {

@@ -43,6 +43,7 @@ type Context struct {
 	Preview   bool
 	Apply     bool
 	Init      bool
+	Destroy   bool
 
 	Middlewares  []Middleware
 	TaskRegistry *sync.Map
@@ -109,6 +110,7 @@ func Copy(ctx *Context) *Context {
 		Apply:        ctx.Apply,
 		Preview:      ctx.Preview,
 		Init:         ctx.Init,
+		Destroy:      ctx.Destroy,
 	}
 }
 

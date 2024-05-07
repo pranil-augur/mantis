@@ -122,9 +122,17 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		newV := v.FillPath(cue.ParsePath("out"), parsedVariables)
 
 		return newV, nil
-	} else if ctx.Apply {
-		// Retrieve the 'plan' command from the commandsFactory using the appropriate key
-		applyCommandFactory, exists := commandsFactory["apply"]
+	} else if ctx.Apply || ctx.Destroy {
+		var applyCommandFactory cli.CommandFactory
+		var exists bool
+
+		if ctx.Apply {
+			// Retrieve the 'plan' command from the commandsFactory using the appropriate key
+			applyCommandFactory, exists = commandsFactory["apply"]
+		} else {
+			applyCommandFactory, exists = commandsFactory["destroy"]
+		}
+
 		if !exists {
 			return nil, fmt.Errorf("apply command not found in commands factory")
 		}
