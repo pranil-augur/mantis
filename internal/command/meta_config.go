@@ -225,7 +225,13 @@ func (m *Meta) installModules(ctx context.Context, rootDir, testsDir string, upg
 
 	inst := initwd.NewModuleInstaller(m.modulesDir(), loader, m.registryClient())
 
-	_, moreDiags := inst.InstallModules(ctx, rootDir, testsDir, upgrade, installErrsOnly, hooks)
+	var moreDiags tfdiags.Diagnostics
+	if m.ConfigDetails != nil {
+		_, moreDiags = inst.InstallModulesStr(ctx, m.ConfigDetails, rootDir, upgrade, installErrsOnly, hooks)
+
+	} else {
+		_, moreDiags = inst.InstallModules(ctx, rootDir, testsDir, upgrade, installErrsOnly, hooks)
+	}
 	diags = diags.Append(moreDiags)
 
 	if ctx.Err() == context.Canceled {

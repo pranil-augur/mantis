@@ -144,6 +144,55 @@ func (i *ModuleInstaller) InstallModules(ctx context.Context, rootDir, testsDir 
 	return cfg, diags
 }
 
+func (i *ModuleInstaller) InstallModulesStr(ctx context.Context, configDetails *configs.MicroConfig, rootDir string, upgrade, installErrsOnly bool, hooks ModuleInstallHooks) (*configs.Config, tfdiags.Diagnostics) {
+	log.Printf("[TRACE] ModuleInstaller: installing child modules for %s into %s", rootDir, i.modsDir)
+	var diags tfdiags.Diagnostics
+
+	rootMod, mDiags := i.loader.Parser().LoadConfigFromStr(configDetails, rootDir)
+	if rootMod == nil {
+		// We drop the diagnostics here because we only want to report module
+		// loading errors after checking the core version constraints, which we
+		// can only do if the module can be at least partially loaded.
+		return nil, diags
+	} else if vDiags := rootMod.CheckCoreVersionRequirements(nil, nil); vDiags.HasErrors() {
+		// If the core version requirements are not met, we drop any other
+		// diagnostics, as they may reflect language changes from future
+		// OpenTofu versions.
+		diags = diags.Append(vDiags)
+	} else {
+		diags = diags.Append(mDiags)
+	}
+
+	manifest, err := modsdir.ReadManifestSnapshotForDir(i.modsDir)
+	if err != nil {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Failed to read modules manifest file",
+			fmt.Sprintf("Error reading manifest for %s: %s.", i.modsDir, err),
+		))
+		return nil, diags
+	}
+
+	fetcher := getmodules.NewPackageFetcher()
+
+	if hooks == nil {
+		// Use our no-op implementation as a placeholder
+		hooks = ModuleInstallHooksImpl{}
+	}
+
+	// Create a manifest record for the root module. This will be used if
+	// there are any relative-pathed modules in the root.
+	manifest[""] = modsdir.Record{
+		Key: "",
+		Dir: rootDir,
+	}
+	walker := i.moduleInstallWalker(ctx, manifest, upgrade, hooks, fetcher)
+
+	cfg, instDiags := i.installDescendentModules(rootMod, manifest, walker, installErrsOnly)
+	diags = append(diags, instDiags...)
+
+	return cfg, diags
+}
 func (i *ModuleInstaller) moduleInstallWalker(ctx context.Context, manifest modsdir.Manifest, upgrade bool, hooks ModuleInstallHooks, fetcher *getmodules.PackageFetcher) configs.ModuleWalker {
 	return configs.ModuleWalkerFunc(
 		func(req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
