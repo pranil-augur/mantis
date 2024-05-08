@@ -1928,8 +1928,6 @@ func (n *NodeAbstractResourceInstance) applyDataSource(ctx EvalContext, planned 
 
 	newVal, readDiags := n.readDataSource(ctx, configVal)
 
-	fmt.Printf("[DEBUG] Existing value from data source: %+v", planned.Before)
-	fmt.Printf("[DEBUG] New value from data source: %+v", newVal)
 	if check, nested := n.nestedInCheckBlock(); nested {
 		addr := check.Addr().Absolute(n.Addr.Module)
 

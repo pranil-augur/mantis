@@ -52,6 +52,8 @@ func (b *Local) opApply(
 
 	stateHook := new(StateHook)
 	op.Hooks = append(op.Hooks, stateHook)
+	// Transfer the TfContext here
+	b.ContextOpts.TfContext = op.TfContext
 
 	// Get our context
 	lr, _, opState, contextDiags := b.localRun(op)
