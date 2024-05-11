@@ -26,12 +26,31 @@ package test
 	}
 }
 
+// Generalized policy definition
+#Policy: {
+	description: string
+	rule: {
+		pattern: string
+		enforce: bool
+	}
+}
+
+#s3_bucket_name: #Policy & {
+	description: "Ensure EKS cluster names follow the required convention"
+	rule: {
+		pattern: "^eks-[a-zA-Z0-9]+-[a-zA-Z0-9]+$"
+		enforce: true
+	}
+}
+
 tasks: {
 	@flow(s3_setup)
 
 	setup: {
-	@task(cueform.TF)
+		@task(cueform.TF)
+		@policy(script)
 		script: #s3BucketConfig
+		policy: #s3_bucket_name 
 	}
 
 	done: {

@@ -41,6 +41,7 @@ func (M *Dummy) Apply(ctx *hofcontext.Context, runner hofcontext.RunnerFunc) hof
 	return func(val cue.Value) (hofcontext.Runner, error) {
 		hasAttr := false
 		attrs := val.Attributes(cue.ValueAttr)
+
 		for _, attr := range attrs {
 			if attr.Name() == "dummy" {
 				hasAttr = true

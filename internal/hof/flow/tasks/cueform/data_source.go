@@ -191,10 +191,10 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 
 		retval := initCommand.Run([]string{})
 		if retval < 0 {
-			return nil, fmt.Errorf("Error Initializing")
+			return nil, fmt.Errorf("error Initializing")
 		}
 	} else {
-		return nil, fmt.Errorf("Unknown command: ")
+		return nil, fmt.Errorf("unknown command. Need to use one of preview/apply/init/destroy")
 	}
 	return nil, nil
 }
