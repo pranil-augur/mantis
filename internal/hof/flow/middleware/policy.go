@@ -52,15 +52,8 @@ func applyPolicy(policy, target cue.Value, targetTag string) error {
 		return fmt.Errorf("failed to extract policy rule: %v", err)
 	}
 
-	fmt.Println("---")
-	fmt.Println(target)
-	fmt.Println("---")
-	fmt.Println("---")
-	fmt.Println(target.LookupPath(cue.ParsePath(targetTag)))
-	fmt.Println("---")
-
 	// Lookup the targetString in the target
-	targetStringVal, err := target.LookupPath(cue.ParsePath(targetTag)).String()
+	targetStringVal := target.LookupPath(cue.ParsePath(targetTag))
 	if err != nil {
 		return fmt.Errorf("failed to lookup target string '%s' in target: %v", targetTag, targetStringVal)
 	}
