@@ -35,7 +35,7 @@ shift
 case $COMMAND in
   run)
     # Run a cue flow from a file or directory using flowrunner
-    "$(dirname "$0")/flowrunner" run "$@" ;;
+    "$(dirname "$0")/cuestack" run "$@" ;;
   artifact)
     # Subcommands for artifact management using cues
     if [ "$#" -lt 1 ]; then
