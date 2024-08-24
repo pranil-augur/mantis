@@ -8,7 +8,7 @@
  * This work is based on code from https://github.com/hofstadter-io/hof, licensed under the Apache License 2.0.
  */
 
-package cueform
+package opentf
 
 import (
 	"context"
@@ -43,7 +43,7 @@ func NewTFTask(val cue.Value) (hofcontext.Runner, error) {
 
 func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	v := ctx.Value
-	script := v.LookupPath(cue.ParsePath("script"))
+	script := v.LookupPath(cue.ParsePath("config"))
 	jsonScript, err := script.MarshalJSON()
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling script to JSON: %v", err)
@@ -118,6 +118,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 			return nil, fmt.Errorf("failed to execute plan command with exit status %d", err)
 		}
 		v.FillPath(cue.ParsePath("out"), parsedVariables)
+		// fmt.Printf("Parsed Variables: %+v\n", *parsedVariables)
 		// Attempt to fill the path with the new value
 		newV := v.FillPath(cue.ParsePath("out"), parsedVariables)
 

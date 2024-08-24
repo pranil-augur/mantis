@@ -13,8 +13,6 @@ package tasks
 import (
 	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 
-	"github.com/opentofu/opentofu/internal/hof/flow/tasks/cueform"
-
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/api"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/csp"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/cue"
@@ -22,6 +20,7 @@ import (
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/hof"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/kv"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/msg"
+	"github.com/opentofu/opentofu/internal/hof/flow/tasks/opentf"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/os"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/prompt"
 )
@@ -40,8 +39,7 @@ func RegisterDefaults(context *hofcontext.Context) {
 	context.Register("cue.Format", cue.NewCueFormat)
 
 	context.Register("db.Call", db.NewCall)
-	context.Register("cueform.TF", cueform.NewTFTask)
-	context.Register("cueform.PrintObj", cueform.NewPrintArgsTask)
+	context.Register("opentf.TF", opentf.NewTFTask)
 
 	context.Register("hof.Template", hof.NewHofTemplate)
 
