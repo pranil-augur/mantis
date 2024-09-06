@@ -48,13 +48,11 @@ tasks: {
 
 	setup: {
 		@task(cueform.TF)
-		@policy(script)
 		script: #s3BucketConfig
-		policy: #s3_bucket_name 
 	}
 
 	done: {
 		@task(os.Stdout)
-		text: "S3 bucket setup completed.\n"
+		text: "S3 bucket setup completed.\`n"
 	}
 }

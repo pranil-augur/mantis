@@ -44,7 +44,39 @@ func NewTFTask(val cue.Value) (hofcontext.Runner, error) {
 func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	v := ctx.Value
 	script := v.LookupPath(cue.ParsePath("config"))
+
+	// Retrieve the dynamic_inputs field
+	dynamicInputs := v.LookupPath(cue.ParsePath("inputs"))
+	if dynamicInputs.Exists() {
+		// Convert the script to a string
+		scriptStr := fmt.Sprintf("%v", script)
+		if scriptStr == "" {
+			return nil, fmt.Errorf("error converting script to string: empty result")
+		}
+
+		dynamicInputsStr := fmt.Sprintf("inputs: %v", dynamicInputs)
+		// Create a new CUE context
+		cuectx := cuecontext.New()
+		// Compile the dynamicInputs string first
+		dynamicInputsValue := cuectx.CompileString(dynamicInputsStr)
+		if dynamicInputsValue.Err() != nil {
+			return nil, fmt.Errorf("error compiling dynamic inputs: %v", dynamicInputsValue.Err())
+		}
+
+		// Use the compiled dynamicInputs as scope for the script
+		script = cuectx.CompileString(scriptStr, cue.Scope(dynamicInputsValue))
+
+		if script.Err() != nil {
+			return nil, fmt.Errorf("error compiling script with dynamic inputs: %v", script.Err())
+		}
+		// Print the script
+		//fmt.Printf("Script:\n%v\n", script)
+
+	}
+	// Marshal the unified result to JSON
 	jsonScript, err := script.MarshalJSON()
+
+	// Print the JSON representation of the script
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling script to JSON: %v", err)
 	}
