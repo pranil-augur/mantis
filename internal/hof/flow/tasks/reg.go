@@ -17,6 +17,7 @@ import (
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/csp"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/cue"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/db"
+	"github.com/opentofu/opentofu/internal/hof/flow/tasks/helm"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/hof"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/kv"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/msg"
@@ -40,6 +41,7 @@ func RegisterDefaults(context *hofcontext.Context) {
 
 	context.Register("db.Call", db.NewCall)
 	context.Register("opentf.TF", opentf.NewTFTask)
+	context.Register("k8s.Helm", helm.NewHelmTask)
 
 	context.Register("hof.Template", hof.NewHofTemplate)
 
