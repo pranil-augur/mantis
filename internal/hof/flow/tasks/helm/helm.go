@@ -6,6 +6,7 @@ import (
 	"cuelang.org/go/cue"
 	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 )
 
@@ -39,11 +40,17 @@ func (t *HelmTask) Run(ctx *hofcontext.Context) (any, error) {
 		client.DryRun = true
 		client.ReleaseName = releaseName
 		client.Namespace = namespace
-
-		_, err := client.Run(chartName, nil)
+		chart, err := loader.Load(chartName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to perform dry-run installation: %v", err)
+			return nil, fmt.Errorf("failed to load chart: %v", err) // Return nil and error
 		}
+
+		_, err = client.Run(chart, nil)
+		if err != nil {
+			return nil, fmt.Errorf("dry-run failed: %v", err) // Return nil and error
+		}
+
+		client.Run(chart, nil)
 
 		return "Helm chart dry-run successful", nil
 	} else if ctx.Apply {
@@ -51,10 +58,14 @@ func (t *HelmTask) Run(ctx *hofcontext.Context) (any, error) {
 		client := action.NewInstall(actionConfig)
 		client.ReleaseName = releaseName
 		client.Namespace = namespace
-
-		_, err := client.Run(chartName, nil)
+		chart, err := loader.Load(chartName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to install Helm chart: %v", err)
+			return nil, fmt.Errorf("failed to load chart: %v", err) // Return nil and error
+		}
+
+		_, err = client.Run(chart, nil)
+		if err != nil {
+			return nil, fmt.Errorf("apply failed: %v", err) // Return nil and error
 		}
 
 		return "Helm chart installed successfully", nil
