@@ -118,6 +118,8 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		}
 		c.Value = c.CueContext.BuildExpr(injectedNode)
 
+		fmt.Println("Injected value: %v", c.Value)
+
 		if node.Hof.Flow.Print.Level > 0 && node.Hof.Flow.Print.Before {
 			pv := c.Value.LookupPath(cue.ParsePath(node.Hof.Flow.Print.Path))
 			if node.Hof.Path == "" {
