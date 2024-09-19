@@ -4,7 +4,7 @@
         {
             "label": "build_cuestack",
             "type": "shell",
-            "command": "cd /Users/pdasika/opensource/opentofu/internal/hof/flow/main; GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o cuestack",            
+            "command": "cd /Users/pdasika/opensource/opentofu/internal/hof/flow/main; make build",            
             "problemMatcher": [],
         }
     ]
