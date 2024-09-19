@@ -99,7 +99,7 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 
 	// wrap our RunnerFunc with cue/flow RunnerFunc
 	return cueflow.RunnerFunc(func(t *cueflow.Task) error {
-		// fmt.Println("makeTask.func()", t.Index(), t.Path())
+		fmt.Println("makeTask.func()", t.Index(), t.Path())
 
 		// why do we need a copy?
 		// maybe for local Value / CurrTask
