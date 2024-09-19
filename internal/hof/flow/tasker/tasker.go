@@ -12,8 +12,12 @@ package tasker
 
 import (
 	"fmt"
+	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/ast/astutil"
+	"cuelang.org/go/cue/token"
 	cueflow "cuelang.org/go/tools/flow"
 
 	flowctx "github.com/opentofu/opentofu/internal/hof/flow/context"
@@ -42,6 +46,9 @@ func NewTasker(ctx *flowctx.Context) cueflow.TaskFunc {
 			return nil, err
 		}
 		if node == nil {
+			return nil, nil
+		}
+		if node.Hof.Flow.Task == "" {
 			return nil, nil
 		}
 		//if node.Hof.Flow.Task == "nest" {
@@ -103,6 +110,14 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		if err != nil {
 			return err
 		}
+
+		// Inject variables before running the task
+		injectedNode, err := injectVariables(node.Value, c.GlobalVars)
+		if err != nil {
+			return fmt.Errorf("error injecting variables: %v", err)
+		}
+		c.Value = c.CueContext.BuildExpr(injectedNode)
+
 		if node.Hof.Flow.Print.Level > 0 && node.Hof.Flow.Print.Before {
 			pv := c.Value.LookupPath(cue.ParsePath(node.Hof.Flow.Print.Path))
 			if node.Hof.Path == "" {
@@ -128,16 +143,8 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		// run the hof task
 		bt.AddTimeEvent("run.beg")
 		// (update)
-		value, err := T.Run(c)
+		value, rerr := T.Run(c)
 		bt.AddTimeEvent("run.end")
-
-		if err != nil {
-			err = fmt.Errorf("in %q\n%v", c.Value.Path(), cuetils.ExpandCueError(err))
-			// fmt.Println("RunnerRunc Error:", err)
-			c.Error = err
-			bt.Error = err
-			return err
-		}
 
 		if value != nil {
 			// fmt.Println("FILL:", taskId, c.Value.Path(), t.Value(), value)
@@ -147,20 +154,126 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 			//  fmt.Println("FILL:", taskId, c.Value.Path(), value)
 			//}
 			err = t.Fill(value)
+			bt.Final = t.Value()
 			bt.AddTimeEvent("fill.end")
+
+			// fmt.Println("FILL:", taskId, c.Value.Path(), t.Value(), value)
 			if err != nil {
 				c.Error = err
 				bt.Error = err
 				return err
 			}
 
-			bt.Final = t.Value()
 			//if node.Hof.Flow.Print.Level > 0 && !node.Hof.Flow.Print.Before {
 			//  // pv := bt.Final.LookupPath(cue.ParsePath(node.Hof.Flow.Print.Path))
 			//  fmt.Printf("%s.%s: %# v\n", node.Hof.Path, node.Hof.Flow.Print.Path, value)
 			//}
+			// --------------------------------
+			updateGlobalVars(c, bt.Final)
 
 		}
+
+		if rerr != nil {
+			rerr = fmt.Errorf("in %q\n%v\n%+v", c.Value.Path(), cuetils.ExpandCueError(rerr), value)
+			// fmt.Println("RunnerRunc Error:", err)
+			c.Error = rerr
+			bt.Error = rerr
+			return rerr
+		}
+
 		return nil
 	}), nil
+}
+
+func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Expr, error) {
+	f := value.Syntax(cue.Final()).(ast.Expr)
+
+	injectedNode := astutil.Apply(f, nil, func(c astutil.Cursor) bool {
+		n := c.Node()
+
+		switch x := n.(type) {
+		case *ast.Field:
+			for _, attr := range x.Attrs {
+				if strings.HasPrefix(attr.Text, "@runinject") {
+					varName := parseRunInjectAttr(attr.Text)
+					if val, ok := lookupNestedValue(globalVars, varName); ok {
+						x.Value = &ast.BasicLit{
+							Kind:  token.STRING,
+							Value: fmt.Sprintf("%q", val),
+						}
+					}
+				}
+			}
+		}
+		return true
+	})
+
+	return injectedNode.(ast.Expr), nil
+}
+
+func parseRunInjectAttr(attrText string) string {
+	attrText = strings.TrimPrefix(attrText, "@runinject(")
+	attrText = strings.TrimSuffix(attrText, ")")
+	return strings.Trim(attrText, "\"")
+}
+
+func lookupNestedValue(m map[string]interface{}, key string) (string, bool) {
+	parts := strings.Split(key, ".")
+	var current interface{} = m
+
+	for _, part := range parts {
+		switch v := current.(type) {
+		case map[string]string:
+			if val, ok := v[part]; ok {
+				current = val
+			} else {
+				return "", false
+			}
+		case map[string]interface{}:
+			if val, ok := v[part]; ok {
+				current = val
+			} else {
+				return "", false
+			}
+		default:
+			if len(parts) == 1 {
+				return fmt.Sprint(current), true
+			}
+			return "", false
+		}
+	}
+
+	return fmt.Sprint(current), true
+}
+
+func updateGlobalVars(ctx *flowctx.Context, taskOutput cue.Value) {
+	iter, _ := taskOutput.Fields()
+	for iter.Next() {
+		key := iter.Label()
+		value := iter.Value()
+		if value.IsConcrete() {
+			setNestedValue(ctx.GlobalVars, key, fmt.Sprint(value))
+		}
+	}
+}
+
+func setNestedValue(m map[string]interface{}, key string, value string) {
+	parts := strings.Split(key, ".")
+	current := m
+
+	for _, part := range parts[:len(parts)-1] {
+		if _, ok := current[part]; !ok {
+			current[part] = make(map[string]interface{})
+		}
+		if nested, ok := current[part].(map[string]interface{}); ok {
+			current = nested
+		} else {
+			newMap := make(map[string]interface{})
+			current[part] = newMap
+			current = newMap
+		}
+	}
+
+	current[parts[len(parts)-1]] = value
+	// fmt.Println("SET:", m)
 }

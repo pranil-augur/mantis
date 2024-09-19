@@ -70,7 +70,11 @@ type Context struct {
 
 	// channels for
 	// - stats & progress
+	// CUE context
+	CueContext *cue.Context
 
+	// output vars
+	GlobalVars map[string]interface{}
 }
 
 func New() *Context {
@@ -84,6 +88,8 @@ func New() *Context {
 		TaskRegistry: new(sync.Map),
 		Tasks:        new(sync.Map),
 		Pools:        new(sync.Map),
+		CueContext:   nil,
+		GlobalVars:   make(map[string]interface{}),
 	}
 }
 
@@ -111,6 +117,8 @@ func Copy(ctx *Context) *Context {
 		Preview:      ctx.Preview,
 		Init:         ctx.Init,
 		Destroy:      ctx.Destroy,
+		CueContext:   ctx.CueContext,
+		GlobalVars:   ctx.GlobalVars,
 	}
 }
 
