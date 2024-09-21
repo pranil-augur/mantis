@@ -46,33 +46,33 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	script := v.LookupPath(cue.ParsePath("config"))
 
 	// Retrieve the dynamic_inputs field
-	dynamicInputs := v.LookupPath(cue.ParsePath("inputs"))
-	if dynamicInputs.Exists() {
-		// Convert the script to a string
-		scriptStr := fmt.Sprintf("%v", script)
-		if scriptStr == "" {
-			return nil, fmt.Errorf("error converting script to string: empty result")
-		}
+	// dynamicInputs := v.LookupPath(cue.ParsePath("inputs"))
+	// if dynamicInputs.Exists() {
+	// 	// Convert the script to a string
+	// 	scriptStr := fmt.Sprintf("%v", script)
+	// 	if scriptStr == "" {
+	// 		return nil, fmt.Errorf("error converting script to string: empty result")
+	// 	}
 
-		dynamicInputsStr := fmt.Sprintf("inputs: %v", dynamicInputs)
-		// Create a new CUE context
-		cuectx := cuecontext.New()
-		// Compile the dynamicInputs string first
-		dynamicInputsValue := cuectx.CompileString(dynamicInputsStr)
-		if dynamicInputsValue.Err() != nil {
-			return nil, fmt.Errorf("error compiling dynamic inputs: %v", dynamicInputsValue.Err())
-		}
+	// 	dynamicInputsStr := fmt.Sprintf("inputs: %v", dynamicInputs)
+	// 	// Create a new CUE context
+	// 	cuectx := cuecontext.New()
+	// 	// Compile the dynamicInputs string first
+	// 	dynamicInputsValue := cuectx.CompileString(dynamicInputsStr)
+	// 	if dynamicInputsValue.Err() != nil {
+	// 		return nil, fmt.Errorf("error compiling dynamic inputs: %v", dynamicInputsValue.Err())
+	// 	}
 
-		// Use the compiled dynamicInputs as scope for the script
-		script = cuectx.CompileString(scriptStr, cue.Scope(dynamicInputsValue))
+	// 	// Use the compiled dynamicInputs as scope for the script
+	// 	script = cuectx.CompileString(scriptStr, cue.Scope(dynamicInputsValue))
 
-		if script.Err() != nil {
-			return nil, fmt.Errorf("error compiling script with dynamic inputs: %v", script.Err())
-		}
-		// Print the script
-		//fmt.Printf("Script:\n%v\n", script)
+	// 	if script.Err() != nil {
+	// 		return nil, fmt.Errorf("error compiling script with dynamic inputs: %v", script.Err())
+	// 	}
+	// 	// Print the script
+	// 	//fmt.Printf("Script:\n%v\n", script)
 
-	}
+	// }
 	// Marshal the unified result to JSON
 	jsonScript, err := script.MarshalJSON()
 

@@ -147,6 +147,7 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		// (update)
 		value, rerr := T.Run(c)
 		bt.AddTimeEvent("run.end")
+		updateGlobalVars(c, bt.Final)
 
 		if value != nil {
 			// fmt.Println("FILL:", taskId, c.Value.Path(), t.Value(), value)
@@ -171,8 +172,6 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 			//  fmt.Printf("%s.%s: %# v\n", node.Hof.Path, node.Hof.Flow.Print.Path, value)
 			//}
 			// --------------------------------
-			updateGlobalVars(c, bt.Final)
-
 		}
 
 		if rerr != nil {
@@ -186,9 +185,14 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		return nil
 	}), nil
 }
-
 func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Expr, error) {
 	f := value.Syntax(cue.Final()).(ast.Expr)
+
+	imports, _ := value.LookupPath(cue.ParsePath("imports")).Fields()
+	importMap := make(map[string]string)
+	for imports.Next() {
+		importMap[imports.Label()], _ = imports.Value().String()
+	}
 
 	injectedNode := astutil.Apply(f, nil, func(c astutil.Cursor) bool {
 		n := c.Node()
@@ -198,10 +202,12 @@ func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Ex
 			for _, attr := range x.Attrs {
 				if strings.HasPrefix(attr.Text, "@runinject") {
 					varName := parseRunInjectAttr(attr.Text)
-					if val, ok := lookupNestedValue(globalVars, varName); ok {
-						x.Value = &ast.BasicLit{
-							Kind:  token.STRING,
-							Value: fmt.Sprintf("%q", val),
+					if importPath, ok := importMap[varName]; ok {
+						if val, ok := lookupNestedValue(globalVars, importPath); ok {
+							x.Value = &ast.BasicLit{
+								Kind:  token.STRING,
+								Value: fmt.Sprintf("%q", val),
+							}
 						}
 					}
 				}
@@ -225,12 +231,6 @@ func lookupNestedValue(m map[string]interface{}, key string) (string, bool) {
 
 	for _, part := range parts {
 		switch v := current.(type) {
-		case map[string]string:
-			if val, ok := v[part]; ok {
-				current = val
-			} else {
-				return "", false
-			}
 		case map[string]interface{}:
 			if val, ok := v[part]; ok {
 				current = val
@@ -238,9 +238,6 @@ func lookupNestedValue(m map[string]interface{}, key string) (string, bool) {
 				return "", false
 			}
 		default:
-			if len(parts) == 1 {
-				return fmt.Sprint(current), true
-			}
 			return "", false
 		}
 	}
@@ -249,12 +246,13 @@ func lookupNestedValue(m map[string]interface{}, key string) (string, bool) {
 }
 
 func updateGlobalVars(ctx *flowctx.Context, taskOutput cue.Value) {
-	iter, _ := taskOutput.Fields()
-	for iter.Next() {
-		key := iter.Label()
-		value := iter.Value()
-		if value.IsConcrete() {
-			setNestedValue(ctx.GlobalVars, key, fmt.Sprint(value))
+	taskPath := taskOutput.Path().String()
+	outputs, _ := taskOutput.LookupPath(cue.ParsePath("outputs")).List()
+
+	for i := 0; outputs.Next(); i++ {
+		outputVar, _ := outputs.Value().String()
+		if value := taskOutput.LookupPath(cue.ParsePath(outputVar)); value.Exists() {
+			setNestedValue(ctx.GlobalVars, fmt.Sprintf("%s.outputs.%s", taskPath, outputVar), fmt.Sprint(value))
 		}
 	}
 }
@@ -277,5 +275,4 @@ func setNestedValue(m map[string]interface{}, key string, value string) {
 	}
 
 	current[parts[len(parts)-1]] = value
-	// fmt.Println("SET:", m)
 }
