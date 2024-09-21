@@ -1,6 +1,5 @@
 package test
 
-
 #providers: {
     provider: {
         "aws": {}
@@ -35,7 +34,7 @@ package test
         "aws_availability_zones": {
             "available": [
                 {
-                    "state": "available"
+                    "state": "available" 
                 }
             ]
         }

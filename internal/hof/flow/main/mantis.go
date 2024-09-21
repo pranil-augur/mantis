@@ -19,7 +19,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var rootCmd = &cobra.Command{Use: "cuestack"}
+var rootCmd = &cobra.Command{Use: "mantis"}
 var runCmd = &cobra.Command{
 	Use:   "run [path]",
 	Short: "Run a cue flow from a file or directory",
@@ -42,25 +42,13 @@ var genCmd = &cobra.Command{
 	},
 }
 
-var importCmd = &cobra.Command{
-	Use:   "import <source directory>",
-	Short: "Import HCL files and convert them into a Cuestack blueprint",
-	Long:  `This command imports HCL files from the specified source directory and converts them into a Cuestack blueprint using OpenAI.`,
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := runner.ImportHCL(args); err != nil {
-			fmt.Fprintf(os.Stderr, "Error importing HCL files: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println("HCL files imported and converted successfully.")
-	},
-}
-
 var rflags flags.RootPflagpole
 
 func init() {
 	// Initialize flags using the function from root.go
 	// flags.SetupRootPflags(rootCmd.PersistentFlags(), &rflags)
+	rootCmd.PersistentFlags().StringArrayVarP(&(rflags.Tags), "tags", "t", nil, "@tags() to be injected into CUE code")
+	rootCmd.PersistentFlags().BoolVarP(&(rflags.InjectEnv), "inject-env", "V", false, "inject all ENV VARs as default tag vars")
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Preview, "preview", "P", false, "preview the changes to the state")
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Apply, "apply", "A", false, "apply the proposed state")
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Init, "init", "I", false, "init modules")
@@ -68,7 +56,6 @@ func init() {
 
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(genCmd)
-	rootCmd.AddCommand(importCmd)
 }
 
 func main() {
