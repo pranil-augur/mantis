@@ -147,7 +147,6 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		// (update)
 		value, rerr := T.Run(c)
 		bt.AddTimeEvent("run.end")
-		updateGlobalVars(c, bt.Final)
 
 		if value != nil {
 			// fmt.Println("FILL:", taskId, c.Value.Path(), t.Value(), value)
@@ -166,6 +165,7 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 				bt.Error = err
 				return err
 			}
+			updateGlobalVars(c, bt)
 
 			//if node.Hof.Flow.Print.Level > 0 && !node.Hof.Flow.Print.Before {
 			//  // pv := bt.Final.LookupPath(cue.ParsePath(node.Hof.Flow.Print.Path))
@@ -248,17 +248,17 @@ func lookupNestedValue(m map[string]interface{}, key string) (string, bool) {
 	return "", false
 }
 
-func updateGlobalVars(ctx *flowctx.Context, taskOutput cue.Value) {
-	// _ := taskOutput.Path().String()
-	outputs, _ := taskOutput.LookupPath(cue.ParsePath("outputs")).List()
+func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask) {
+	taskPath := bt.ID // Use the task ID as the path
+	fmt.Println("Task Path:", bt.ID)
+
+	outputs, _ := bt.Final.LookupPath(cue.ParsePath("outputs")).List()
 
 	for i := 0; outputs.Next(); i++ {
-		outputVar, _ := outputs.Value().String() // @todo: handle error
-		if value := taskOutput.LookupPath(cue.ParsePath(outputVar)); value.Exists() {
-			setNestedValue(ctx.GlobalVars, fmt.Sprintf("outputs.%s", outputVar), fmt.Sprint(value))
-			// setNestedValue(ctx.GlobalVars, fmt.Sprintf("%s.outputs.%s", taskPath, outputVar), fmt.Sprint(value))
-			// ^ here taskPath is not resolved correctly. It should be the path of the task in the flow
-			// so just using outtputs.<outputVar> for now to test injecting variables
+		outputVar, _ := outputs.Value().String()
+		if value := bt.Final.LookupPath(cue.ParsePath(outputVar)); value.Exists() {
+			fullPath := fmt.Sprintf("tasks.%s.outputs.%s", taskPath, outputVar)
+			setNestedValue(ctx.GlobalVars, fullPath, fmt.Sprint(value))
 		}
 	}
 }

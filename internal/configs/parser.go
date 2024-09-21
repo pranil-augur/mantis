@@ -110,10 +110,6 @@ func (p *Parser) LoadHCLString(configDetails *MicroConfig) (hcl.Body, hcl.Diagno
 	switch configDetails.Format {
 	case "json":
 		file, diags = p.p.ParseJSON(configDetails.Content, "input.json")
-	case "cue":
-		fmt.Println("Parsing CUE content as string with content:", string(configDetails.Content))
-		// Assuming LoadCUEDir can be adapted to handle string content directly for CUE format
-		file, diags = p.loadCUEString(configDetails.Content)
 	default:
 		file, diags = p.p.ParseHCL(configDetails.Content, "input.hcl")
 	}
@@ -124,54 +120,6 @@ func (p *Parser) LoadHCLString(configDetails *MicroConfig) (hcl.Body, hcl.Diagno
 		return hcl.EmptyBody(), diags
 	}
 
-	return file.Body, diags
-}
-
-// LoadCUEString is a helper method to parse CUE content from a string and convert it to HCL via JSON.
-func (p *Parser) loadCUEString(content []byte) (*hcl.File, hcl.Diagnostics) {
-	c := cuecontext.New()
-	instance := c.CompileBytes(content)
-	if instance.Err() != nil {
-		return nil, hcl.Diagnostics{
-			{
-				Severity: hcl.DiagError,
-				Summary:  "Failed to compile CUE content",
-				Detail:   fmt.Sprintf("Error compiling CUE content: %v", instance.Err()),
-			},
-		}
-	}
-	// Convert the CUE instance to JSON
-	jsonBytes, err := instance.MarshalJSON()
-	if err != nil {
-		return nil, hcl.Diagnostics{
-			{
-				Severity: hcl.DiagError,
-				Summary:  "Failed to convert CUE instance to JSON",
-				Detail:   fmt.Sprintf("Error marshalling CUE instance to JSON: %v", err),
-			},
-		}
-	}
-	fmt.Println("JSON Bytes:", string(jsonBytes))
-	// Parse the JSON as HCL
-	file, diags := p.p.ParseJSON(jsonBytes, "input.json")
-	if diags.HasErrors() {
-		return nil, hcl.Diagnostics{
-			{
-				Severity: hcl.DiagError,
-				Summary:  "Failed to parse from json",
-				Detail:   fmt.Sprintf("Error compiling HCL from json: %v", diags),
-			},
-		}
-	}
-
-	return file, nil
-}
-
-func (p *Parser) LoadCUEFileWrapper(path string) (hcl.Body, hcl.Diagnostics) {
-	file, diags := p.LoadCUEDir(path)
-	if file == nil {
-		return hcl.EmptyBody(), diags
-	}
 	return file.Body, diags
 }
 

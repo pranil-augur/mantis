@@ -21,9 +21,9 @@ tasks: {
 
 	get_region: {
 		@task(opentf.TF)
-		output: {
-			region: "us-east-1"
-		}
+		// output: {
+		region: "us-east-1"
+		// }
 		outputs: ["region"]
 		config: {}
 	}
