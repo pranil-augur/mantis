@@ -185,13 +185,20 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		return nil
 	}), nil
 }
+
 func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Expr, error) {
 	f := value.Syntax(cue.Final()).(ast.Expr)
 
 	imports, _ := value.LookupPath(cue.ParsePath("imports")).Fields()
 	importMap := make(map[string]string)
 	for imports.Next() {
-		importMap[imports.Label()], _ = imports.Value().String()
+		importName := imports.Label()
+		importPath, _ := imports.Value().String() // @todo: handle error
+		if val, ok := lookupNestedValue(globalVars, importPath); ok {
+			importMap[importName] = val
+		} else {
+			return nil, fmt.Errorf("failed to resolve import %s: %s", importName, importPath)
+		}
 	}
 
 	injectedNode := astutil.Apply(f, nil, func(c astutil.Cursor) bool {
@@ -202,12 +209,10 @@ func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Ex
 			for _, attr := range x.Attrs {
 				if strings.HasPrefix(attr.Text, "@runinject") {
 					varName := parseRunInjectAttr(attr.Text)
-					if importPath, ok := importMap[varName]; ok {
-						if val, ok := lookupNestedValue(globalVars, importPath); ok {
-							x.Value = &ast.BasicLit{
-								Kind:  token.STRING,
-								Value: fmt.Sprintf("%q", val),
-							}
+					if val, ok := importMap[varName]; ok {
+						x.Value = &ast.BasicLit{
+							Kind:  token.STRING,
+							Value: fmt.Sprintf("%q", val),
 						}
 					}
 				}
@@ -227,32 +232,33 @@ func parseRunInjectAttr(attrText string) string {
 
 func lookupNestedValue(m map[string]interface{}, key string) (string, bool) {
 	parts := strings.Split(key, ".")
-	var current interface{} = m
+	current := m
 
 	for _, part := range parts {
-		switch v := current.(type) {
-		case map[string]interface{}:
-			if val, ok := v[part]; ok {
-				current = val
+		if val, ok := current[part]; ok {
+			if nextMap, isMap := val.(map[string]interface{}); isMap {
+				current = nextMap
 			} else {
-				return "", false
+				return fmt.Sprint(val), true
 			}
-		default:
+		} else {
 			return "", false
 		}
 	}
-
-	return fmt.Sprint(current), true
+	return "", false
 }
 
 func updateGlobalVars(ctx *flowctx.Context, taskOutput cue.Value) {
-	taskPath := taskOutput.Path().String()
+	// _ := taskOutput.Path().String()
 	outputs, _ := taskOutput.LookupPath(cue.ParsePath("outputs")).List()
 
 	for i := 0; outputs.Next(); i++ {
-		outputVar, _ := outputs.Value().String()
+		outputVar, _ := outputs.Value().String() // @todo: handle error
 		if value := taskOutput.LookupPath(cue.ParsePath(outputVar)); value.Exists() {
-			setNestedValue(ctx.GlobalVars, fmt.Sprintf("%s.outputs.%s", taskPath, outputVar), fmt.Sprint(value))
+			setNestedValue(ctx.GlobalVars, fmt.Sprintf("outputs.%s", outputVar), fmt.Sprint(value))
+			// setNestedValue(ctx.GlobalVars, fmt.Sprintf("%s.outputs.%s", taskPath, outputVar), fmt.Sprint(value))
+			// ^ here taskPath is not resolved correctly. It should be the path of the task in the flow
+			// so just using outtputs.<outputVar> for now to test injecting variables
 		}
 	}
 }
@@ -261,18 +267,14 @@ func setNestedValue(m map[string]interface{}, key string, value string) {
 	parts := strings.Split(key, ".")
 	current := m
 
-	for _, part := range parts[:len(parts)-1] {
-		if _, ok := current[part]; !ok {
-			current[part] = make(map[string]interface{})
-		}
-		if nested, ok := current[part].(map[string]interface{}); ok {
-			current = nested
+	for i, part := range parts {
+		if i == len(parts)-1 {
+			current[part] = value
 		} else {
-			newMap := make(map[string]interface{})
-			current[part] = newMap
-			current = newMap
+			if _, ok := current[part]; !ok {
+				current[part] = make(map[string]interface{})
+			}
+			current = current[part].(map[string]interface{})
 		}
 	}
-
-	current[parts[len(parts)-1]] = value
 }
