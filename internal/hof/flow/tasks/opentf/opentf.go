@@ -94,7 +94,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	}
 	// Initialize commands
 	commandsFactory := utils.InitCommandsWrapper(std_ctx, "", streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders, configDetails)
-	if ctx.Preview {
+	if ctx.Plan {
 		// Retrieve the 'plan' command from the commandsFactory using the appropriate key
 		planCommandFactory, exists := commandsFactory["plan"]
 		if !exists {
@@ -202,7 +202,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 			return nil, fmt.Errorf("error Initializing")
 		}
 	} else {
-		return nil, fmt.Errorf("unknown command. Need to use one of preview/apply/init/destroy")
+		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/init/destroy")
 	}
 	return nil, nil
 }

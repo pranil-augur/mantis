@@ -34,7 +34,7 @@ func (t *HelmTask) Run(ctx *hofcontext.Context) (any, error) {
 		return nil, fmt.Errorf("failed to initialize Helm action config: %v", err)
 	}
 
-	if ctx.Preview {
+	if ctx.Plan {
 		// Perform a dry-run installation
 		client := action.NewInstall(actionConfig)
 		client.DryRun = true
@@ -81,5 +81,5 @@ func (t *HelmTask) Run(ctx *hofcontext.Context) (any, error) {
 		return "Helm release uninstalled successfully", nil
 	}
 
-	return nil, fmt.Errorf("unknown command. Need to use one of preview/apply/destroy")
+	return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/destroy")
 }

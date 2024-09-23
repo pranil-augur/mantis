@@ -39,7 +39,7 @@ func prepFlow(R *Runtime, val cue.Value) (*flow.Flow, error) {
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	c.Verbosity = R.Flags.Verbosity
-	c.Preview = R.Flags.Preview
+	c.Plan = R.Flags.Plan
 	c.Apply = R.Flags.Apply
 	c.Init = R.Flags.Init
 	c.Destroy = R.Flags.Destroy

@@ -14,7 +14,7 @@ function show_help() {
   echo "  -A, --apply    Apply the proposed state"
   echo "  -D, --destroy  Destroy resources"
   echo "  -I, --init     Init modules"
-  echo "  -P, --preview  Preview the changes to the state"
+  echo "  -P, --plan  PLan the changes to the state"
   echo ""
   echo "Artifact Commands:"
   echo "  list        List the tags of an artifact"
