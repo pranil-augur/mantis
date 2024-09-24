@@ -28,6 +28,7 @@ import (
 	"github.com/opentofu/opentofu/internal/terminal"
 	"github.com/opentofu/opentofu/internal/utils"
 	"github.com/zclconf/go-cty/cty"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 // TFTask is a task for running a Terraform plan using a specific configuration
@@ -45,34 +46,6 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	v := ctx.Value
 	script := v.LookupPath(cue.ParsePath("config"))
 
-	// Retrieve the dynamic_inputs field
-	// dynamicInputs := v.LookupPath(cue.ParsePath("inputs"))
-	// if dynamicInputs.Exists() {
-	// 	// Convert the script to a string
-	// 	scriptStr := fmt.Sprintf("%v", script)
-	// 	if scriptStr == "" {
-	// 		return nil, fmt.Errorf("error converting script to string: empty result")
-	// 	}
-
-	// 	dynamicInputsStr := fmt.Sprintf("inputs: %v", dynamicInputs)
-	// 	// Create a new CUE context
-	// 	cuectx := cuecontext.New()
-	// 	// Compile the dynamicInputs string first
-	// 	dynamicInputsValue := cuectx.CompileString(dynamicInputsStr)
-	// 	if dynamicInputsValue.Err() != nil {
-	// 		return nil, fmt.Errorf("error compiling dynamic inputs: %v", dynamicInputsValue.Err())
-	// 	}
-
-	// 	// Use the compiled dynamicInputs as scope for the script
-	// 	script = cuectx.CompileString(scriptStr, cue.Scope(dynamicInputsValue))
-
-	// 	if script.Err() != nil {
-	// 		return nil, fmt.Errorf("error compiling script with dynamic inputs: %v", script.Err())
-	// 	}
-	// 	// Print the script
-	// 	//fmt.Printf("Script:\n%v\n", script)
-
-	// }
 	// Marshal the unified result to JSON
 	jsonScript, err := script.MarshalJSON()
 
@@ -149,10 +122,12 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute plan command with exit status %d", err)
 		}
-		v.FillPath(cue.ParsePath("out"), parsedVariables)
-		// fmt.Printf("Parsed Variables: %+v\n", *parsedVariables)
+		parsedVariablesMap, _ := convertCtyValueToMap(*parsedVariables)
+		fmt.Printf("Parsed Variables: %+v\n", parsedVariablesMap)
+		// v.FillPath(cue.ParsePath("out"), parsedVariables)
 		// Attempt to fill the path with the new value
-		newV := v.FillPath(cue.ParsePath("out"), parsedVariables)
+		newV := v.FillPath(cue.ParsePath("out"), parsedVariablesMap)
+		// verifyNewV(newV)
 
 		return newV, nil
 	} else if ctx.Apply || ctx.Destroy {
@@ -231,3 +206,135 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	}
 	return nil, nil
 }
+
+func convertCtyValueToMap(input map[string]map[string]cty.Value) (map[string]interface{}, error) {
+	// Convert the entire input to a cty.Value
+	inputValue, err := convertMapToCtyValue(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert input to cty.Value: %v", err)
+	}
+
+	// Marshal cty.Value to JSON, preserving type information
+	jsonBytes, err := ctyjson.Marshal(inputValue, inputValue.Type())
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal cty.Value to JSON: %v", err)
+	}
+
+	// Unmarshal JSON back to cty.Value, using the original type
+	ctyValue, err := ctyjson.Unmarshal(jsonBytes, inputValue.Type())
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON to cty.Value: %v", err)
+	}
+
+	// Convert cty.Value to Go map
+	return ctyValueToMap(ctyValue)
+}
+
+func convertMapToCtyValue(input map[string]map[string]cty.Value) (cty.Value, error) {
+	outerMap := make(map[string]cty.Value)
+	for outerKey, innerMap := range input {
+		innerCtyMap := make(map[string]cty.Value)
+		for innerKey, value := range innerMap {
+			innerCtyMap[innerKey] = value
+		}
+		outerMap[outerKey] = cty.ObjectVal(innerCtyMap)
+	}
+	return cty.ObjectVal(outerMap), nil
+}
+
+func ctyValueToMap(v cty.Value) (map[string]interface{}, error) {
+	if v.IsNull() {
+		return nil, nil
+	}
+	if !v.Type().IsObjectType() && !v.Type().IsMapType() {
+		return nil, fmt.Errorf("cannot convert non-object/non-map value to map")
+	}
+	result := make(map[string]interface{})
+	for key, value := range v.AsValueMap() {
+		var err error
+		result[key], err = ctyValueToInterface(value)
+		if err != nil {
+			return nil, fmt.Errorf("error converting value for key %s: %v", key, err)
+		}
+	}
+	return result, nil
+}
+
+func ctyValueToInterface(v cty.Value) (interface{}, error) {
+	if v.IsNull() {
+		return nil, nil
+	}
+	switch {
+	case v.Type() == cty.String:
+		return v.AsString(), nil
+	case v.Type() == cty.Number:
+		return v.AsBigFloat(), nil
+	case v.Type() == cty.Bool:
+		return v.True(), nil
+	case v.Type().IsListType() || v.Type().IsSetType() || v.Type().IsTupleType():
+		list := make([]interface{}, 0, v.LengthInt())
+		for _, ev := range v.AsValueSlice() {
+			elemValue, err := ctyValueToInterface(ev)
+			if err != nil {
+				return nil, err
+			}
+			list = append(list, elemValue)
+		}
+		return list, nil
+	case v.Type().IsMapType() || v.Type().IsObjectType():
+		return ctyValueToMap(v)
+	default:
+		return fmt.Sprintf("%v", v), nil
+	}
+}
+
+// Debug function to print cty.Value
+func printCtyValue(v cty.Value) {
+	fmt.Printf("Type: %s\n", v.Type().FriendlyName())
+	fmt.Printf("Value: %#v\n", v)
+}
+
+// func convertCtyValueToMap(input map[string]map[string]cty.Value) map[string]interface{} {
+// 	result := make(map[string]interface{})
+
+// 	for outerKey, innerMap := range input {
+// 		innerResult := make(map[string]interface{})
+// 		for innerKey, ctyValue := range innerMap {
+// 			innerResult[innerKey] = convertCtyValueToInterface(ctyValue)
+// 		}
+// 		result[outerKey] = innerResult
+// 	}
+
+// 	return result
+// }
+
+// func convertCtyValueToInterface(v cty.Value) interface{} {
+// 	if v.IsNull() {
+// 		return nil
+// 	}
+
+// 	switch v.Type() {
+// 	case cty.String:
+// 		return v.AsString()
+// 	case cty.Number:
+// 		f, _ := v.AsBigFloat().Float64()
+// 		return f
+// 	case cty.Bool:
+// 		return v.True()
+// 	case cty.List(cty.DynamicPseudoType), cty.Set(cty.DynamicPseudoType):
+// 		list := make([]interface{}, 0, v.LengthInt())
+// 		for _, ev := range v.AsValueSlice() {
+// 			list = append(list, convertCtyValueToInterface(ev))
+// 		}
+// 		return list
+// 	case cty.Map(cty.DynamicPseudoType), cty.Object(map[string]cty.Type{}):
+// 		m := make(map[string]interface{})
+// 		for k, ev := range v.AsValueMap() {
+// 			m[k] = convertCtyValueToInterface(ev)
+// 		}
+// 		return m
+// 	default:
+// 		// For other types, convert to string representation
+// 		return fmt.Sprintf("%v", v)
+// 	}
+// }

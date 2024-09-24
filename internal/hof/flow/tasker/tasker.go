@@ -118,7 +118,7 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		}
 		c.Value = c.CueContext.BuildExpr(injectedNode)
 
-		fmt.Println("Injected value: %v", c.Value)
+		// fmt.Println("Injected value: %v", c.Value)
 
 		if node.Hof.Flow.Print.Level > 0 && node.Hof.Flow.Print.Before {
 			pv := c.Value.LookupPath(cue.ParsePath(node.Hof.Flow.Print.Path))
@@ -165,7 +165,11 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 				bt.Error = err
 				return err
 			}
-			updateGlobalVars(c, bt)
+			if cueValue, ok := value.(cue.Value); ok {
+				updateGlobalVars(c, bt, cueValue)
+			} else {
+				return fmt.Errorf("expected cue.Value, got %T", value)
+			}
 
 			//if node.Hof.Flow.Print.Level > 0 && !node.Hof.Flow.Print.Before {
 			//  // pv := bt.Final.LookupPath(cue.ParsePath(node.Hof.Flow.Print.Path))
@@ -189,15 +193,15 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Expr, error) {
 	f := value.Syntax(cue.Final()).(ast.Expr)
 
-	imports, _ := value.LookupPath(cue.ParsePath("imports")).Fields()
-	importMap := make(map[string]string)
-	for imports.Next() {
-		importName := imports.Label()
-		importPath, _ := imports.Value().String() // @todo: handle error
-		if val, ok := lookupNestedValue(globalVars, importPath); ok {
-			importMap[importName] = val
+	inputs, _ := value.LookupPath(cue.ParsePath("inputs")).Fields()
+	inputMap := make(map[string]string)
+	for inputs.Next() {
+		inputName := inputs.Label()
+		inputPath, _ := inputs.Value().String() // @todo: handle error
+		if val, ok := lookupNestedValue(globalVars, inputPath); ok {
+			inputMap[inputName] = val
 		} else {
-			return nil, fmt.Errorf("failed to resolve import %s: %s", importName, importPath)
+			return nil, fmt.Errorf("failed to resolve inputs %s: %s", inputName, inputPath)
 		}
 	}
 
@@ -209,7 +213,7 @@ func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Ex
 			for _, attr := range x.Attrs {
 				if strings.HasPrefix(attr.Text, "@runinject") {
 					varName := parseRunInjectAttr(attr.Text)
-					if val, ok := importMap[varName]; ok {
+					if val, ok := inputMap[varName]; ok {
 						x.Value = &ast.BasicLit{
 							Kind:  token.STRING,
 							Value: fmt.Sprintf("%q", val),
@@ -248,22 +252,48 @@ func lookupNestedValue(m map[string]interface{}, key string) (string, bool) {
 	return "", false
 }
 
-func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask) {
+func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) {
 	taskPath := bt.ID // Use the task ID as the path
-	fmt.Println("Task Path:", bt.ID)
 
-	outputs, _ := bt.Final.LookupPath(cue.ParsePath("outputs")).List()
+	outputsValue := bt.Final.LookupPath(cue.ParsePath("outputs"))
+	outValue := value.LookupPath(cue.ParsePath("out"))
 
-	for i := 0; outputs.Next(); i++ {
-		outputVar, _ := outputs.Value().String()
-		if value := bt.Final.LookupPath(cue.ParsePath(outputVar)); value.Exists() {
-			fullPath := fmt.Sprintf("tasks.%s.outputs.%s", taskPath, outputVar)
-			setNestedValue(ctx.GlobalVars, fullPath, fmt.Sprint(value))
+	// debugPrintCueValue("outValue", outValue)
+
+	if outputsValue.Exists() {
+		switch outputsValue.Kind() {
+		case cue.StructKind:
+			iter, _ := outputsValue.Fields()
+			for iter.Next() {
+				outputVar := iter.Label()
+				outputPath, _ := iter.Value().String()
+				fmt.Printf("Processing output: %s with path: %s\n", outputVar, outputPath)
+				processOutput(ctx, taskPath, outputVar, outputPath, outValue)
+			}
+		default:
+			fmt.Printf("Unexpected outputs kind: %v\n", outputsValue.Kind())
 		}
+	} else {
+		fmt.Println("No outputs defined for this task")
 	}
 }
 
-func setNestedValue(m map[string]interface{}, key string, value string) {
+func processOutput(ctx *flowctx.Context, taskPath, outputVar, outputPath string, outValue cue.Value) {
+	if actualValue := fetchActualValue(outValue, outputPath); actualValue.Exists() {
+		// Debug: Print the found output value
+		// debugPrintCueValue(fmt.Sprintf("Found value for %s", outputVar), actualValue)
+		fullPath := fmt.Sprintf("tasks.%s.outputs.%s", taskPath, outputVar)
+		setNestedValue(ctx.GlobalVars, fullPath, formatValue(actualValue))
+	} else {
+		// Debug: Print when output value is not found
+		fmt.Printf("Value not found for output: %s at path: %s\n", outputVar, outputPath)
+
+		// Additional debugging: print the structure of outValue
+		// debugPrintCueValue("outValue structure", outValue)
+	}
+}
+
+func setNestedValue(m map[string]interface{}, key string, value interface{}) {
 	parts := strings.Split(key, ".")
 	current := m
 
@@ -278,3 +308,102 @@ func setNestedValue(m map[string]interface{}, key string, value string) {
 		}
 	}
 }
+
+func fetchActualValue(value cue.Value, path string) cue.Value {
+	parts := strings.Split(path, ".")
+
+	// this is a hack to handle cases where the key is a nested key
+	if len(parts) < 2 {
+		// If there's only one part, just do a direct lookup
+		return value.LookupPath(cue.ParsePath(path))
+	}
+
+	// Combine all parts except the last one as the main key
+	mainKey := strings.Join(parts[:len(parts)-1], ".")
+	lastKey := parts[len(parts)-1]
+
+	// First, try to lookup the main key as a whole
+	mainValue := value.LookupPath(cue.ParsePath(mainKey))
+	if !mainValue.Exists() {
+		// If that fails, try to lookup the main key as a quoted string
+		mainValue = value.LookupPath(cue.ParsePath(fmt.Sprintf("%q", mainKey)))
+	}
+
+	if !mainValue.Exists() {
+		fmt.Printf("Main key not found: %s\n", mainKey)
+		// debugPrintCueValue("Current value structure", value)
+		return cue.Value{}
+	}
+
+	fmt.Printf("Looking up last key: %s\n", lastKey)
+	result := mainValue.LookupPath(cue.ParsePath(lastKey))
+	if !result.Exists() {
+		fmt.Printf("Last key not found: %s\n", lastKey)
+		// debugPrintCueValue("Main value structure", mainValue)
+		return cue.Value{}
+	}
+
+	return result
+}
+
+func formatValue(v cue.Value) interface{} {
+	switch v.Kind() {
+	case cue.StringKind:
+		str, _ := v.String()
+		return str
+	case cue.IntKind:
+		i, _ := v.Int64()
+		return i
+	case cue.FloatKind:
+		f, _ := v.Float64()
+		return f
+	case cue.BoolKind:
+		b, _ := v.Bool()
+		return b
+	case cue.StructKind:
+		m := make(map[string]interface{})
+		iter, _ := v.Fields()
+		for iter.Next() {
+			m[iter.Label()] = formatValue(iter.Value())
+		}
+		return m
+	case cue.ListKind:
+		var list []interface{}
+		iter, _ := v.List()
+		for iter.Next() {
+			list = append(list, formatValue(iter.Value()))
+		}
+		return list
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+// func debugPrintCueValue(label string, v cue.Value) {
+// 	fmt.Printf("--- Debug: %s ---\n", label)
+// 	fmt.Printf("Kind: %v\n", v.Kind())
+
+// 	switch v.Kind() {
+// 	case cue.StructKind:
+// 		fmt.Println("Structure:")
+// 		iter, _ := v.Fields()
+// 		for iter.Next() {
+// 			fmt.Printf("  %s: %v\n", iter.Label(), iter.Value())
+// 		}
+// 	case cue.ListKind:
+// 		fmt.Println("List:")
+// 		list, _ := v.List()
+// 		for list.Next() {
+// 			fmt.Printf("  %v\n", list.Value())
+// 		}
+// 	default:
+// 		fmt.Printf("Value: %v\n", v)
+// 	}
+
+// 	// Print CUE syntax representation
+// 	syn := v.Syntax(cue.Final())
+// 	bytes, _ := cueformat.Node(syn)
+// 	fmt.Printf("CUE syntax:\n%s\n", string(bytes))
+
+// 	fmt.Println("------------------------")
+// }
