@@ -312,7 +312,9 @@ func setNestedValue(m map[string]interface{}, key string, value interface{}) {
 func fetchActualValue(value cue.Value, path string) cue.Value {
 	parts := strings.Split(path, ".")
 
-	// this is a hack to handle cases where the key is a nested key
+	// this is a hack to handle cases where the key is itself a composite key
+	// more specifically; "data.aws_availability_zones.available.id"
+	// it assumes that the last part is the "last key" and the rest is the "main key"
 	if len(parts) < 2 {
 		// If there's only one part, just do a direct lookup
 		return value.LookupPath(cue.ParsePath(path))
