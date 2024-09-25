@@ -46,7 +46,8 @@ changelog:
 #   github:
 #     owner: your_github_username
 #     name: your_repo_name
-
+release:
+  disable: true
 
 blobs:
   - provider: s3
