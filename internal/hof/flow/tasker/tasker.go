@@ -17,6 +17,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
+	cueformat "cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/token"
 	cueflow "cuelang.org/go/tools/flow"
 
@@ -258,17 +259,25 @@ func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) 
 	outputsValue := bt.Final.LookupPath(cue.ParsePath("outputs"))
 	outValue := value.LookupPath(cue.ParsePath("out"))
 
-	// debugPrintCueValue("outValue", outValue)
-
+	debugPrintCueValue("outputsValue", outputsValue)
 	if outputsValue.Exists() {
 		switch outputsValue.Kind() {
-		case cue.StructKind:
-			iter, _ := outputsValue.Fields()
+		case cue.ListKind:
+			iter, _ := outputsValue.List()
 			for iter.Next() {
-				outputVar := iter.Label()
-				outputPath, _ := iter.Value().String()
-				fmt.Printf("Processing output: %s with path: %s\n", outputVar, outputPath)
-				processOutput(ctx, taskPath, outputVar, outputPath, outValue)
+				outputDef := iter.Value()
+				alias, _ := outputDef.LookupPath(cue.ParsePath("alias")).String()
+				pathValue := outputDef.LookupPath(cue.ParsePath("path"))
+
+				var path []string
+				pathIter, _ := pathValue.List()
+				for pathIter.Next() {
+					pathPart, _ := pathIter.Value().String()
+					path = append(path, pathPart)
+				}
+
+				fmt.Printf("Processing output: %s with path: %v\n", alias, path)
+				processOutput(ctx, taskPath, alias, path, outValue)
 			}
 		default:
 			fmt.Printf("Unexpected outputs kind: %v\n", outputsValue.Kind())
@@ -278,18 +287,34 @@ func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) 
 	}
 }
 
-func processOutput(ctx *flowctx.Context, taskPath, outputVar, outputPath string, outValue cue.Value) {
-	if actualValue := fetchActualValue(outValue, outputPath); actualValue.Exists() {
-		// Debug: Print the found output value
-		// debugPrintCueValue(fmt.Sprintf("Found value for %s", outputVar), actualValue)
-		fullPath := fmt.Sprintf("tasks.%s.outputs.%s", taskPath, outputVar)
+func getOutputPath(value cue.Value) ([]string, error) {
+	if value.Kind() != cue.ListKind {
+		return nil, fmt.Errorf("expected list, got %v", value.Kind())
+	}
+
+	var path []string
+	iter, err := value.List()
+	if err != nil {
+		return nil, err
+	}
+
+	for iter.Next() {
+		str, err := iter.Value().String()
+		if err != nil {
+			return nil, err
+		}
+		path = append(path, str)
+	}
+
+	return path, nil
+}
+
+func processOutput(ctx *flowctx.Context, taskPath, alias string, path []string, outValue cue.Value) {
+	if actualValue := fetchActualValue(outValue, path); actualValue.Exists() {
+		fullPath := fmt.Sprintf("tasks.%s.outputs.%s", taskPath, alias)
 		setNestedValue(ctx.GlobalVars, fullPath, formatValue(actualValue))
 	} else {
-		// Debug: Print when output value is not found
-		fmt.Printf("Value not found for output: %s at path: %s\n", outputVar, outputPath)
-
-		// Additional debugging: print the structure of outValue
-		// debugPrintCueValue("outValue structure", outValue)
+		fmt.Printf("Value not found for output: %s at path: %v\n", alias, path)
 	}
 }
 
@@ -309,43 +334,21 @@ func setNestedValue(m map[string]interface{}, key string, value interface{}) {
 	}
 }
 
-func fetchActualValue(value cue.Value, path string) cue.Value {
-	parts := strings.Split(path, ".")
+func fetchActualValue(value cue.Value, path []string) cue.Value {
+	current := value
+	for _, part := range path {
+		current = current.LookupPath(cue.ParsePath(part))
+		if !current.Exists() {
+			// fmt.Printf("Path part not found: %s\n", part)
+			current = value.LookupPath(cue.ParsePath(fmt.Sprintf("%q", cue.ParsePath(part))))
+		}
 
-	// this is a hack to handle cases where the key is itself a composite key
-	// more specifically; "data.aws_availability_zones.available.id"
-	// it assumes that the last part is the "last key" and the rest is the "main key"
-	if len(parts) < 2 {
-		// If there's only one part, just do a direct lookup
-		return value.LookupPath(cue.ParsePath(path))
+		if !current.Exists() {
+			fmt.Printf("Path part not found: %s\n", part)
+			return cue.Value{}
+		}
 	}
-
-	// Combine all parts except the last one as the main key
-	mainKey := strings.Join(parts[:len(parts)-1], ".")
-	lastKey := parts[len(parts)-1]
-
-	// First, try to lookup the main key as a whole
-	mainValue := value.LookupPath(cue.ParsePath(mainKey))
-	if !mainValue.Exists() {
-		// If that fails, try to lookup the main key as a quoted string
-		mainValue = value.LookupPath(cue.ParsePath(fmt.Sprintf("%q", mainKey)))
-	}
-
-	if !mainValue.Exists() {
-		fmt.Printf("Main key not found: %s\n", mainKey)
-		// debugPrintCueValue("Current value structure", value)
-		return cue.Value{}
-	}
-
-	fmt.Printf("Looking up last key: %s\n", lastKey)
-	result := mainValue.LookupPath(cue.ParsePath(lastKey))
-	if !result.Exists() {
-		fmt.Printf("Last key not found: %s\n", lastKey)
-		// debugPrintCueValue("Main value structure", mainValue)
-		return cue.Value{}
-	}
-
-	return result
+	return current
 }
 
 func formatValue(v cue.Value) interface{} {
@@ -381,31 +384,31 @@ func formatValue(v cue.Value) interface{} {
 	}
 }
 
-// func debugPrintCueValue(label string, v cue.Value) {
-// 	fmt.Printf("--- Debug: %s ---\n", label)
-// 	fmt.Printf("Kind: %v\n", v.Kind())
+func debugPrintCueValue(label string, v cue.Value) {
+	fmt.Printf("--- Debug: %s ---\n", label)
+	fmt.Printf("Kind: %v\n", v.Kind())
 
-// 	switch v.Kind() {
-// 	case cue.StructKind:
-// 		fmt.Println("Structure:")
-// 		iter, _ := v.Fields()
-// 		for iter.Next() {
-// 			fmt.Printf("  %s: %v\n", iter.Label(), iter.Value())
-// 		}
-// 	case cue.ListKind:
-// 		fmt.Println("List:")
-// 		list, _ := v.List()
-// 		for list.Next() {
-// 			fmt.Printf("  %v\n", list.Value())
-// 		}
-// 	default:
-// 		fmt.Printf("Value: %v\n", v)
-// 	}
+	switch v.Kind() {
+	case cue.StructKind:
+		fmt.Println("Structure:")
+		iter, _ := v.Fields()
+		for iter.Next() {
+			fmt.Printf("  %s: %v\n", iter.Label(), iter.Value())
+		}
+	case cue.ListKind:
+		fmt.Println("List:")
+		list, _ := v.List()
+		for list.Next() {
+			fmt.Printf("  %v\n", list.Value())
+		}
+	default:
+		fmt.Printf("Value: %v\n", v)
+	}
 
-// 	// Print CUE syntax representation
-// 	syn := v.Syntax(cue.Final())
-// 	bytes, _ := cueformat.Node(syn)
-// 	fmt.Printf("CUE syntax:\n%s\n", string(bytes))
+	// Print CUE syntax representation
+	syn := v.Syntax(cue.Final())
+	bytes, _ := cueformat.Node(syn)
+	fmt.Printf("CUE syntax:\n%s\n", string(bytes))
 
-// 	fmt.Println("------------------------")
-// }
+	fmt.Println("------------------------")
+}
