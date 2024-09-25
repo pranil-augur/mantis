@@ -16,18 +16,18 @@ builds:
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
-# archives:
-#   - format: tar.gz
-#     name_template: >-
-#       {{ .ProjectName }}_
-#       {{- title .Os }}_
-#       {{- if eq .Arch "amd64" }}x86_64
-#       {{- else if eq .Arch "386" }}i386
-#       {{- else }}{{ .Arch }}{{ end }}
-#       {{- if .Arm }}v{{ .Arm }}{{ end }}
-#     format_overrides:
-#     - goos: windows
-#       format: zip
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+    - goos: windows
+      format: zip
 
 checksum:
   name_template: 'checksums.txt'
@@ -92,5 +92,5 @@ brews:
             # WARNING: do not expose your private key in the configuration file!
             #
             # Templates: allowed.
-            # private_key: '{{ .Env.PRIVATE_KEY_PATH }}'
+            private_key: '{{ .Env.PRIVATE_KEY_PATH }}'
             ssh_command: 'ssh -i {{ .Env.PRIVATE_KEY_PATH }}'
