@@ -92,5 +92,5 @@ brews:
             # WARNING: do not expose your private key in the configuration file!
             #
             # Templates: allowed.
-            private_key: '{{ .Env.PRIVATE_KEY_PATH }}'
-            # ssh_command: 
+            # private_key: '{{ .Env.PRIVATE_KEY_PATH }}'
+            ssh_command: 'ssh -i {{ .Env.PRIVATE_KEY_PATH }}'
