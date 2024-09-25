@@ -62,7 +62,7 @@ brews:
       email: kaushil.kundalia@getaugur.ai
   commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
   repository:
-      owner: Pranil
+      owner: pranil-augur
 
       name: homebrew-mantis
 
@@ -77,3 +77,20 @@ brews:
       #
       # Templates: allowed.
       token: "{{ .Env.GITHUB_PERSONAL_AUTH_TOKEN }}"
+      git:
+            # The Git URL to push.
+            #
+            # Templates: allowed.
+            url: 'ssh://git@github.com:pranil-augur/homebrew-mantis.git'
+
+            # The SSH private key that should be used to commit to the Git
+            # repository.
+            # This can either be a path or the key contents.
+            #
+            # IMPORTANT: the key must not be password-protected.
+            #
+            # WARNING: do not expose your private key in the configuration file!
+            #
+            # Templates: allowed.
+            private_key: '{{ .Env.PRIVATE_KEY_PATH }}'
+            # ssh_command: 
