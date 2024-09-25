@@ -12,6 +12,7 @@ package tasker
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -195,7 +196,7 @@ func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Ex
 	f := value.Syntax(cue.Final()).(ast.Expr)
 
 	inputs, _ := value.LookupPath(cue.ParsePath("inputs")).Fields()
-	inputMap := make(map[string]string)
+	inputMap := make(map[string]interface{})
 	for inputs.Next() {
 		inputName := inputs.Label()
 		inputPath, _ := inputs.Value().String() // @todo: handle error
@@ -215,10 +216,7 @@ func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Ex
 				if strings.HasPrefix(attr.Text, "@runinject") {
 					varName := parseRunInjectAttr(attr.Text)
 					if val, ok := inputMap[varName]; ok {
-						x.Value = &ast.BasicLit{
-							Kind:  token.STRING,
-							Value: fmt.Sprintf("%q", val),
-						}
+						x.Value = createASTNodeForValue(val)
 					}
 				}
 			}
@@ -235,24 +233,67 @@ func parseRunInjectAttr(attrText string) string {
 	return strings.Trim(attrText, "\"")
 }
 
-func lookupNestedValue(m map[string]interface{}, key string) (string, bool) {
+func lookupNestedValue(m map[string]interface{}, key string) (interface{}, bool) {
 	parts := strings.Split(key, ".")
 	current := m
 
-	for _, part := range parts {
+	for i, part := range parts {
+		if i == len(parts)-1 {
+			// We've reached the final part, return the value
+			if val, ok := current[part]; ok {
+				return val, true
+			}
+			return nil, false
+		}
+
 		if val, ok := current[part]; ok {
 			if nextMap, isMap := val.(map[string]interface{}); isMap {
 				current = nextMap
 			} else {
-				return fmt.Sprint(val), true
+				// We've hit a non-map value before the end of the path
+				return nil, false
 			}
 		} else {
-			return "", false
+			return nil, false
 		}
 	}
-	return "", false
+	return nil, false
 }
 
+func createASTNodeForValue(val interface{}) ast.Expr {
+	switch v := val.(type) {
+	case string:
+		return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(v)}
+	case int:
+		return &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(v)}
+	case float64:
+		return &ast.BasicLit{Kind: token.FLOAT, Value: strconv.FormatFloat(v, 'f', -1, 64)}
+	case bool:
+		if v {
+			return &ast.BasicLit{Kind: token.TRUE, Value: "true"}
+		} else {
+			return &ast.BasicLit{Kind: token.FALSE, Value: "false"}
+		}
+	case []interface{}:
+		elts := make([]ast.Expr, len(v))
+		for i, item := range v {
+			elts[i] = createASTNodeForValue(item)
+		}
+		return &ast.ListLit{Elts: elts}
+	case map[string]interface{}:
+		fields := make([]ast.Decl, 0, len(v))
+		for key, value := range v {
+			fields = append(fields, &ast.Field{
+				Label: ast.NewString(key),
+				Value: createASTNodeForValue(value),
+			})
+		}
+		return &ast.StructLit{Elts: fields}
+	default:
+		// For any other types, convert to string as a fallback
+		return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(fmt.Sprintf("%v", v))}
+	}
+}
 func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) {
 	taskPath := bt.ID // Use the task ID as the path
 
