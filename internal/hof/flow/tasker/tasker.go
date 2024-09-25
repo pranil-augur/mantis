@@ -18,7 +18,6 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
-	cueformat "cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/token"
 	cueflow "cuelang.org/go/tools/flow"
 
@@ -300,7 +299,7 @@ func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) 
 	outputsValue := bt.Final.LookupPath(cue.ParsePath("outputs"))
 	outValue := value.LookupPath(cue.ParsePath("out"))
 
-	debugPrintCueValue("outputsValue", outputsValue)
+	// debugPrintCueValue("outputsValue", outputsValue)
 	if outputsValue.Exists() {
 		switch outputsValue.Kind() {
 		case cue.ListKind:
@@ -425,31 +424,31 @@ func formatValue(v cue.Value) interface{} {
 	}
 }
 
-func debugPrintCueValue(label string, v cue.Value) {
-	fmt.Printf("--- Debug: %s ---\n", label)
-	fmt.Printf("Kind: %v\n", v.Kind())
+// func debugPrintCueValue(label string, v cue.Value) {
+// 	fmt.Printf("--- Debug: %s ---\n", label)
+// 	fmt.Printf("Kind: %v\n", v.Kind())
 
-	switch v.Kind() {
-	case cue.StructKind:
-		fmt.Println("Structure:")
-		iter, _ := v.Fields()
-		for iter.Next() {
-			fmt.Printf("  %s: %v\n", iter.Label(), iter.Value())
-		}
-	case cue.ListKind:
-		fmt.Println("List:")
-		list, _ := v.List()
-		for list.Next() {
-			fmt.Printf("  %v\n", list.Value())
-		}
-	default:
-		fmt.Printf("Value: %v\n", v)
-	}
+// 	switch v.Kind() {
+// 	case cue.StructKind:
+// 		fmt.Println("Structure:")
+// 		iter, _ := v.Fields()
+// 		for iter.Next() {
+// 			fmt.Printf("  %s: %v\n", iter.Label(), iter.Value())
+// 		}
+// 	case cue.ListKind:
+// 		fmt.Println("List:")
+// 		list, _ := v.List()
+// 		for list.Next() {
+// 			fmt.Printf("  %v\n", list.Value())
+// 		}
+// 	default:
+// 		fmt.Printf("Value: %v\n", v)
+// 	}
 
-	// Print CUE syntax representation
-	syn := v.Syntax(cue.Final())
-	bytes, _ := cueformat.Node(syn)
-	fmt.Printf("CUE syntax:\n%s\n", string(bytes))
+// 	// Print CUE syntax representation
+// 	syn := v.Syntax(cue.Final())
+// 	bytes, _ := cueformat.Node(syn)
+// 	fmt.Printf("CUE syntax:\n%s\n", string(bytes))
 
-	fmt.Println("------------------------")
-}
+// 	fmt.Println("------------------------")
+// }
