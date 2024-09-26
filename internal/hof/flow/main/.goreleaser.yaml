@@ -96,17 +96,4 @@ brews:
             private_key: '{{ .Env.PRIVATE_KEY_PATH }}'
             ssh_command: 'ssh -i {{ .Env.PRIVATE_KEY_PATH }}'
 
-  url_template: "https://mantis-public-releases.s3.us-east-2.amazonaws.com/{{ .ProjectName }}/{{ .Version }}/{{ .ArtifactName }}"
-  # download_strategy: CurlDownloadStrategy
-  # dependencies:
-  #   - name: curl
-  # custom_block: |
-  #   on_macos do
-  #     if Hardware::CPU.arm?
-  #       url "#{url}darwin_arm64.tar.gz"
-  #       sha256 "{{ .Env.ARM64_SHA }}"
-  #     else
-  #       url "#{url}darwin_amd64.tar.gz"
-  #       sha256 "{{ .Env.AMD64_SHA }}"
-  #     end
-  #   end
+  url_template: "https://mantis-public-releases.s3.us-east-2.amazonaws.com/{{ .ProjectName }}/v{{ .Version }}/{{ .ArtifactName }}"
