@@ -95,3 +95,17 @@ brews:
             # Templates: allowed.
             private_key: '{{ .Env.PRIVATE_KEY_PATH }}'
             ssh_command: 'ssh -i {{ .Env.PRIVATE_KEY_PATH }}'
+
+  download_strategy: CurlDownloadStrategy
+  url_template: "https://mantis-public-releases.s3.us-east-2.amazonaws.com/{{ .ProjectName }}/{{ .Version }}/{{ .ArtifactName }}"
+  custom_require: 'url'
+  custom_block: |
+    on_macos do
+      if Hardware::CPU.arm?
+        url "{{ .URLTemplate }}"
+        sha256 "{{ .Checksums.SHA256 }}"
+      else
+        url "{{ .URLTemplate }}"
+        sha256 "{{ .Checksums.SHA256 }}"
+      end
+    end         
