@@ -65,7 +65,7 @@ brews:
   repository:
       owner: pranil-augur
 
-      name: homebrew-mantis
+      name: mantis
 
       # Optionally a branch can be provided.
       #
@@ -82,7 +82,7 @@ brews:
             # The Git URL to push.
             #
             # Templates: allowed.
-            url: 'ssh://git@github.com:pranil-augur/homebrew-mantis.git'
+            url: 'ssh://git@github.com:pranil-augur/mantis.git'
 
             # The SSH private key that should be used to commit to the Git
             # repository.
