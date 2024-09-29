@@ -185,7 +185,7 @@ func (c *MockEvalContext) Input() UIInput {
 	return c.InputInput
 }
 
-func (ctx *MockEvalContext) UpdateHofCtxVariables(key string, vars cty.Value) *map[string]map[string]cty.Value {
+func (ctx *MockEvalContext) UpdateHofCtxVariables(key string, vars cty.Value) *map[string]interface{} {
 	(*ctx.TfContext.ParsedVariables)[key] = vars.AsValueMap()
 	return ctx.TfContext.ParsedVariables
 }

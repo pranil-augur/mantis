@@ -636,6 +636,10 @@ func (n *NodeAbstractResourceInstance) refresh(ctx EvalContext, deposedKey state
 		// warning about the change.
 		log.Printf("[WARN] Provider %q produced an invalid new value containing null blocks for %q during refresh\n", n.ResolvedProvider.Provider, n.Addr)
 	}
+	newVal := resp.NewState
+	if !newVal.IsNull() {
+		ctx.UpdateHofCtxVariables(n.Addr.String(), newVal) // @todo: change this to do a deepcopy of the value. Currently it is flattening the keys as "key1.key2[0]"
+	}
 
 	ret := state.DeepCopy()
 	ret.Value = newState
@@ -670,6 +674,7 @@ func (n *NodeAbstractResourceInstance) refresh(ctx EvalContext, deposedKey state
 	return ret, diags
 }
 
+// @todo: updateHofContext with newValue
 func (n *NodeAbstractResourceInstance) plan(
 	ctx EvalContext,
 	plannedChange *plans.ResourceInstanceChange,
@@ -2354,6 +2359,9 @@ func (n *NodeAbstractResourceInstance) apply(
 	// to completion but must be defensive against the new value being
 	// incomplete.
 	newVal := resp.NewState
+	if !newVal.IsNull() {
+		ctx.UpdateHofCtxVariables(n.Addr.String(), newVal) // @todo: change this to do a deepcopy of the value. Currently it is flattening the keys as "key1.key2[0]"
+	}
 
 	// If we have paths to mark, mark those on this new value
 	if len(afterPaths) > 0 {

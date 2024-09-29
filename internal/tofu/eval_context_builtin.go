@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/hcl/v2"
@@ -96,8 +98,55 @@ func (ctx *BuiltinEvalContext) WithPath(path addrs.ModuleInstance) EvalContext {
 	return &newCtx
 }
 
-func (ctx *BuiltinEvalContext) UpdateHofCtxVariables(key string, vars cty.Value) *map[string]map[string]cty.Value {
-	(*ctx.TfContext.ParsedVariables)[key] = vars.AsValueMap()
+func (ctx *BuiltinEvalContext) UpdateHofCtxVariables(key string, vars cty.Value) *map[string]interface{} {
+	if ctx.TfContext.ParsedVariables == nil {
+		ctx.TfContext.ParsedVariables = &map[string]interface{}{}
+	}
+
+	parts := strings.FieldsFunc(key, func(r rune) bool {
+		return r == '.' || r == '[' || r == ']'
+	})
+
+	current := *ctx.TfContext.ParsedVariables
+	for i, part := range parts {
+		if i == len(parts)-1 {
+			// At the last part, assign the new value
+			current[part] = vars.AsValueMap()
+		} else {
+			// Check if the current part exists
+			if nextLevel, ok := current[part]; ok {
+				// If it exists, check its type
+				switch v := nextLevel.(type) {
+				case map[string]interface{}:
+					current = v
+				case []interface{}:
+					index, err := strconv.Atoi(parts[i+1])
+					if err != nil {
+						// Handle error: parts[i+1] is not a valid integer index
+						return ctx.TfContext.ParsedVariables
+					}
+					// Ensure the slice is large enough
+					for len(v) <= index {
+						v = append(v, make(map[string]interface{}))
+					}
+					current[part] = v
+					current = v[index].(map[string]interface{})
+					i++ // Skip the next part as we've used it as an index
+				default:
+					// If it's neither a map nor a slice, overwrite with a new map
+					newMap := make(map[string]interface{})
+					current[part] = newMap
+					current = newMap
+				}
+			} else {
+				// If it doesn't exist, create a new map
+				newMap := make(map[string]interface{})
+				current[part] = newMap
+				current = newMap
+			}
+		}
+	}
+
 	return ctx.TfContext.ParsedVariables
 }
 

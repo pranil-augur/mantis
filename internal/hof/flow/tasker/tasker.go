@@ -379,8 +379,13 @@ func fetchActualValue(value cue.Value, path []string) cue.Value {
 	for _, part := range path {
 		current = current.LookupPath(cue.ParsePath(part))
 		if !current.Exists() {
-			// fmt.Printf("Path part not found: %s\n", part)
+			fmt.Printf("Path part not found: %s\n, looking for key with quotes", part)
 			current = value.LookupPath(cue.ParsePath(fmt.Sprintf("%q", cue.ParsePath(part))))
+		}
+
+		if !current.Exists() {
+			fmt.Printf("Not found with double quotes. Looking for backticks %s\n", part)
+			current = value.LookupPath(cue.ParsePath(fmt.Sprintf("`%s`", part)))
 		}
 
 		if !current.Exists() {

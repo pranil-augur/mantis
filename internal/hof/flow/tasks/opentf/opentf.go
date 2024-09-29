@@ -28,7 +28,6 @@ import (
 	"github.com/opentofu/opentofu/internal/terminal"
 	"github.com/opentofu/opentofu/internal/utils"
 	"github.com/zclconf/go-cty/cty"
-	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
 // TFTask is a task for running a Terraform plan using a specific configuration
@@ -114,20 +113,21 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		}
 		// Execute the PlanCommand with the configuration file path
 		// planCommand.Meta.ConfigByteArray = scriptBytes
-		var parsedVariables *map[string]map[string]cty.Value = &map[string]map[string]cty.Value{}
+		parsedVariables := make(map[string]interface{})
 		// Create a new TFContext with the parsedVariables
-		tfContext := hofcontext.NewTFContext(parsedVariables)
+		tfContext := hofcontext.NewTFContext(&parsedVariables)
 
-		_, err = planCommand.RunAPI([]string{}, tfContext)
+		_, err = planCommand.RunAPI([]string{"-auto-approve"}, tfContext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to execute plan command with exit status %d", err)
+			return nil, fmt.Errorf("failed to execute apply command with exit status %d", err)
 		}
-		parsedVariablesMap, _ := convertCtyValueToMap(*parsedVariables)
-		fmt.Printf("Parsed Variables: %+v\n", parsedVariablesMap)
+		v.FillPath(cue.ParsePath("out"), parsedVariables)
+		var parsedVariablesMap map[string]interface{}
+		parsedVariablesMap, _ = convertCtyToGo(parsedVariables)
+		// fmt.Printf("Parsed Variables: %+v\n", parsedVariablesMap)
 		// v.FillPath(cue.ParsePath("out"), parsedVariables)
 		// Attempt to fill the path with the new value
 		newV := v.FillPath(cue.ParsePath("out"), parsedVariablesMap)
-		// verifyNewV(newV)
 
 		return newV, nil
 	} else if ctx.Apply || ctx.Destroy {
@@ -158,17 +158,22 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		}
 		// Execute the PlanCommand with the configuration file path
 		// planCommand.Meta.ConfigByteArray = scriptBytes
-		var parsedVariables *map[string]map[string]cty.Value = &map[string]map[string]cty.Value{}
+		// var parsedVariables *map[string]map[string]cty.Value = &map[string]map[string]cty.Value{}
+		parsedVariables := make(map[string]interface{})
 		// Create a new TFContext with the parsedVariables
-		tfContext := hofcontext.NewTFContext(parsedVariables)
+		tfContext := hofcontext.NewTFContext(&parsedVariables)
 
-		_, err = applyCommand.RunAPI([]string{}, tfContext)
+		_, err = applyCommand.RunAPI([]string{"-auto-approve"}, tfContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute apply command with exit status %d", err)
 		}
 		v.FillPath(cue.ParsePath("out"), parsedVariables)
+		var parsedVariablesMap map[string]interface{}
+		parsedVariablesMap, _ = convertCtyToGo(parsedVariables)
+		// fmt.Printf("Parsed Variables: %+v\n", parsedVariablesMap)
+		// v.FillPath(cue.ParsePath("out"), parsedVariables)
 		// Attempt to fill the path with the new value
-		newV := v.FillPath(cue.ParsePath("out"), parsedVariables)
+		newV := v.FillPath(cue.ParsePath("out"), parsedVariablesMap)
 
 		return newV, nil
 	} else if ctx.Init {
@@ -207,63 +212,69 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	return nil, nil
 }
 
-func convertCtyValueToMap(input map[string]map[string]cty.Value) (map[string]interface{}, error) {
-	// Convert the entire input to a cty.Value
-	inputValue, err := convertMapToCtyValue(input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert input to cty.Value: %v", err)
-	}
+func convertCtyToGo(input map[string]interface{}) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
 
-	// Marshal cty.Value to JSON, preserving type information
-	jsonBytes, err := ctyjson.Marshal(inputValue, inputValue.Type())
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal cty.Value to JSON: %v", err)
-	}
-
-	// Unmarshal JSON back to cty.Value, using the original type
-	ctyValue, err := ctyjson.Unmarshal(jsonBytes, inputValue.Type())
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON to cty.Value: %v", err)
-	}
-
-	// Convert cty.Value to Go map
-	return ctyValueToMap(ctyValue)
-}
-
-func convertMapToCtyValue(input map[string]map[string]cty.Value) (cty.Value, error) {
-	outerMap := make(map[string]cty.Value)
-	for outerKey, innerMap := range input {
-		innerCtyMap := make(map[string]cty.Value)
-		for innerKey, value := range innerMap {
-			innerCtyMap[innerKey] = value
+	for key, value := range input {
+		convertedValue, err := convertValue(value)
+		if err != nil {
+			return nil, fmt.Errorf("error converting key '%s': %w", key, err)
 		}
-		outerMap[outerKey] = cty.ObjectVal(innerCtyMap)
+		result[key] = convertedValue
 	}
-	return cty.ObjectVal(outerMap), nil
+
+	return result, nil
 }
 
-func ctyValueToMap(v cty.Value) (map[string]interface{}, error) {
-	if v.IsNull() {
+func convertValue(value interface{}) (interface{}, error) {
+	if value == nil {
 		return nil, nil
 	}
-	if !v.Type().IsObjectType() && !v.Type().IsMapType() {
-		return nil, fmt.Errorf("cannot convert non-object/non-map value to map")
+
+	switch v := value.(type) {
+	case cty.Value:
+		return ctyValueToGo(v)
+	case map[string]cty.Value:
+		return convertCtyValueMap(v)
+	case map[string]interface{}:
+		return convertCtyToGo(v)
+	case []interface{}:
+		return convertSlice(v)
+	default:
+		// If it's not a recognized type, return it as-is
+		return v, nil
 	}
+}
+
+func convertCtyValueMap(input map[string]cty.Value) (map[string]interface{}, error) {
 	result := make(map[string]interface{})
-	for key, value := range v.AsValueMap() {
-		var err error
-		result[key], err = ctyValueToInterface(value)
+	for key, value := range input {
+		convertedValue, err := ctyValueToGo(value)
 		if err != nil {
-			return nil, fmt.Errorf("error converting value for key %s: %v", key, err)
+			return nil, fmt.Errorf("error converting key '%s': %w", key, err)
 		}
+		result[key] = convertedValue
 	}
 	return result, nil
 }
 
-func ctyValueToInterface(v cty.Value) (interface{}, error) {
+func convertSlice(slice []interface{}) ([]interface{}, error) {
+	result := make([]interface{}, len(slice))
+	for i, v := range slice {
+		convertedValue, err := convertValue(v)
+		if err != nil {
+			return nil, fmt.Errorf("error converting slice element at index %d: %w", i, err)
+		}
+		result[i] = convertedValue
+	}
+	return result, nil
+}
+
+func ctyValueToGo(v cty.Value) (interface{}, error) {
 	if v.IsNull() {
 		return nil, nil
 	}
+
 	switch {
 	case v.Type() == cty.String:
 		return v.AsString(), nil
@@ -271,21 +282,76 @@ func ctyValueToInterface(v cty.Value) (interface{}, error) {
 		return v.AsBigFloat(), nil
 	case v.Type() == cty.Bool:
 		return v.True(), nil
-	case v.Type().IsListType() || v.Type().IsSetType() || v.Type().IsTupleType():
-		list := make([]interface{}, 0, v.LengthInt())
-		for _, ev := range v.AsValueSlice() {
-			elemValue, err := ctyValueToInterface(ev)
-			if err != nil {
-				return nil, err
-			}
-			list = append(list, elemValue)
-		}
-		return list, nil
+	case v.Type().IsListType() || v.Type().IsTupleType():
+		return ctyListToSlice(v)
 	case v.Type().IsMapType() || v.Type().IsObjectType():
-		return ctyValueToMap(v)
+		return ctyMapToMap(v)
+	case v.Type().IsSetType():
+		return ctySetToSlice(v)
 	default:
-		return fmt.Sprintf("%v", v), nil
+		// Instead of returning an error, let's return the string representation
+		return v.GoString(), nil
 	}
+}
+
+func ctySetToSlice(v cty.Value) ([]interface{}, error) {
+	if !v.Type().IsSetType() {
+		return nil, fmt.Errorf("not a set type")
+	}
+
+	result := make([]interface{}, 0, v.LengthInt())
+	for it := v.ElementIterator(); it.Next(); {
+		_, ev := it.Element()
+		goValue, err := ctyValueToGo(ev)
+		if err != nil {
+			return nil, fmt.Errorf("error converting set element: %w", err)
+		}
+		result = append(result, goValue)
+	}
+
+	return result, nil
+}
+
+func ctyListToSlice(v cty.Value) ([]interface{}, error) {
+	length := v.LengthInt()
+	result := make([]interface{}, length)
+
+	for i := 0; i < length; i++ {
+		element := v.Index(cty.NumberIntVal(int64(i)))
+		goValue, err := ctyValueToGo(element)
+		if err != nil {
+			return nil, fmt.Errorf("error converting list element at index %d: %w", i, err)
+		}
+		result[i] = goValue
+	}
+
+	return result, nil
+}
+
+func ctyMapToMap(v cty.Value) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+
+	for it := v.ElementIterator(); it.Next(); {
+		key, value := it.Element()
+		keyString, err := ctyValueToGo(key)
+		if err != nil {
+			return nil, fmt.Errorf("error converting map key: %w", err)
+		}
+
+		keyStr, ok := keyString.(string)
+		if !ok {
+			return nil, fmt.Errorf("map key is not a string: %v", keyString)
+		}
+
+		goValue, err := ctyValueToGo(value)
+		if err != nil {
+			return nil, fmt.Errorf("error converting map value for key '%s': %w", keyStr, err)
+		}
+
+		result[keyStr] = goValue
+	}
+
+	return result, nil
 }
 
 // Debug function to print cty.Value
