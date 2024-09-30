@@ -15,7 +15,6 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/terraform-svchost/disco"
 	"github.com/mitchellh/cli"
@@ -33,9 +32,6 @@ import (
 // TFTask is a task for running a Terraform plan using a specific configuration
 type TFTask struct {
 }
-
-// Assuming Ui is a global variable of type cli.Ui
-var Ui cli.Ui
 
 func NewTFTask(val cue.Value) (hofcontext.Runner, error) {
 	return &TFTask{}, nil
@@ -117,7 +113,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		// Create a new TFContext with the parsedVariables
 		tfContext := hofcontext.NewTFContext(&parsedVariables)
 
-		_, err = planCommand.RunAPI([]string{"-auto-approve"}, tfContext)
+		_, err = planCommand.RunAPI([]string{}, tfContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute apply command with exit status %d", err)
 		}
@@ -176,38 +172,8 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		newV := v.FillPath(cue.ParsePath("out"), parsedVariablesMap)
 
 		return newV, nil
-	} else if ctx.Init {
-		cueContext := cuecontext.New()
-		value := cueContext.CompileString(scriptStr, cue.Filename("input.json"))
-		terraformOrModule := value.LookupPath(cue.ParsePath("terraform")).Exists() || value.LookupPath(cue.ParsePath("module")).Exists()
-		if !terraformOrModule {
-			return nil, nil
-		}
-
-		initCommandFactory, exists := commandsFactory["init"]
-
-		if !exists {
-			return nil, fmt.Errorf("init command not found in commands factory")
-		}
-
-		// Generate the plan command using the factory
-		initCommandInterface, err := initCommandFactory()
-		if err != nil {
-			return nil, fmt.Errorf("error generating init command: %v", err)
-		}
-
-		// Assert the type of the command to *command.PlanCommand
-		initCommand, ok := initCommandInterface.(*command.InitCommand)
-		if !ok {
-			return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
-		}
-
-		retval := initCommand.Run([]string{})
-		if retval < 0 {
-			return nil, fmt.Errorf("error Initializing")
-		}
 	} else {
-		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/init/destroy")
+		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/destroy")
 	}
 	return nil, nil
 }
@@ -359,48 +325,3 @@ func printCtyValue(v cty.Value) {
 	fmt.Printf("Type: %s\n", v.Type().FriendlyName())
 	fmt.Printf("Value: %#v\n", v)
 }
-
-// func convertCtyValueToMap(input map[string]map[string]cty.Value) map[string]interface{} {
-// 	result := make(map[string]interface{})
-
-// 	for outerKey, innerMap := range input {
-// 		innerResult := make(map[string]interface{})
-// 		for innerKey, ctyValue := range innerMap {
-// 			innerResult[innerKey] = convertCtyValueToInterface(ctyValue)
-// 		}
-// 		result[outerKey] = innerResult
-// 	}
-
-// 	return result
-// }
-
-// func convertCtyValueToInterface(v cty.Value) interface{} {
-// 	if v.IsNull() {
-// 		return nil
-// 	}
-
-// 	switch v.Type() {
-// 	case cty.String:
-// 		return v.AsString()
-// 	case cty.Number:
-// 		f, _ := v.AsBigFloat().Float64()
-// 		return f
-// 	case cty.Bool:
-// 		return v.True()
-// 	case cty.List(cty.DynamicPseudoType), cty.Set(cty.DynamicPseudoType):
-// 		list := make([]interface{}, 0, v.LengthInt())
-// 		for _, ev := range v.AsValueSlice() {
-// 			list = append(list, convertCtyValueToInterface(ev))
-// 		}
-// 		return list
-// 	case cty.Map(cty.DynamicPseudoType), cty.Object(map[string]cty.Type{}):
-// 		m := make(map[string]interface{})
-// 		for k, ev := range v.AsValueMap() {
-// 			m[k] = convertCtyValueToInterface(ev)
-// 		}
-// 		return m
-// 	default:
-// 		// For other types, convert to string representation
-// 		return fmt.Sprintf("%v", v)
-// 	}
-// }
