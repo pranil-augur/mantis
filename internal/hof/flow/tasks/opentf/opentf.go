@@ -15,6 +15,7 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/terraform-svchost/disco"
 	"github.com/mitchellh/cli"
@@ -170,6 +171,36 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		newV := v.FillPath(cue.ParsePath("out"), parsedVariablesMap)
 
 		return newV, nil
+	} else if ctx.Init {
+		cueContext := cuecontext.New()
+		value := cueContext.CompileString(scriptStr, cue.Filename("input.json"))
+		terraformOrModule := value.LookupPath(cue.ParsePath("terraform")).Exists() || value.LookupPath(cue.ParsePath("module")).Exists()
+		if !terraformOrModule {
+			return nil, nil
+		}
+
+		initCommandFactory, exists := commandsFactory["init"]
+
+		if !exists {
+			return nil, fmt.Errorf("init command not found in commands factory")
+		}
+
+		// Generate the plan command using the factory
+		initCommandInterface, err := initCommandFactory()
+		if err != nil {
+			return nil, fmt.Errorf("error generating init command: %v", err)
+		}
+
+		// Assert the type of the command to *command.PlanCommand
+		initCommand, ok := initCommandInterface.(*command.InitCommand)
+		if !ok {
+			return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
+		}
+
+		retval := initCommand.Run([]string{})
+		if retval < 0 {
+			return nil, fmt.Errorf("error Initializing")
+		}
 	} else {
 		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/destroy")
 	}
