@@ -30,6 +30,7 @@ setup_s3_flow: {
                 }
             }
         }
+        
         outputs: [{
             alias: "bucket_id"
             path: ["aws_s3_bucket", "simple_app_bucket", "id"]

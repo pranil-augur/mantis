@@ -83,7 +83,7 @@ require (
 	github.com/lucsky/cuid v1.2.1
 	github.com/manicminer/hamilton v0.44.0
 	github.com/masterzen/winrm v0.0.0-20200615185753-c42b5136ff88
-	github.com/mattn/go-isatty v0.0.19
+	github.com/mattn/go-isatty v0.0.20
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/mattn/go-zglob v0.0.4
 	github.com/mitchellh/cli v1.1.5
@@ -104,7 +104,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkoukk/tiktoken-go v0.1.5
 	github.com/posener/complete v1.2.3
-	github.com/rivo/uniseg v0.4.4
+	github.com/rivo/uniseg v0.4.7
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/sashabaranov/go-openai v1.14.2
 	github.com/sergi/go-diff v1.3.1
@@ -292,6 +292,8 @@ require (
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/itchyny/gojq v0.12.16 // indirect
+	github.com/itchyny/timefmt-go v0.1.6 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jedib0t/go-pretty v4.3.0+incompatible // indirect
 	github.com/jedib0t/go-pretty/v6 v6.4.4 // indirect
