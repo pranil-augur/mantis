@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/itchyny/gojq"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
@@ -354,13 +356,20 @@ func createASTNodeForValue(val interface{}) ast.Expr {
 		return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(fmt.Sprintf("%v", v))}
 	}
 }
-func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) {
-	taskPath := bt.ID // Use the task ID as the path
 
+func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) {
+	taskPath := bt.ID
 	outputsValue := bt.Final.LookupPath(cue.ParsePath("outputs"))
 	outValue := value.LookupPath(cue.ParsePath("out"))
 
-	// debugPrintCueValue("outputsValue", outputsValue)
+	// Parse outValue into a Go object
+	var outData interface{}
+	if err := outValue.Decode(&outData); err != nil {
+		// Instead of returning immediately, let's try to work with the partial data
+		fmt.Printf("Error decoding outValue: %v\n", err)
+		outData = convertCueToInterface(outValue)
+	}
+
 	if outputsValue.Exists() {
 		switch outputsValue.Kind() {
 		case cue.ListKind:
@@ -368,17 +377,8 @@ func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) 
 			for iter.Next() {
 				outputDef := iter.Value()
 				alias, _ := outputDef.LookupPath(cue.ParsePath("alias")).String()
-				pathValue := outputDef.LookupPath(cue.ParsePath("path"))
-
-				var path []string
-				pathIter, _ := pathValue.List()
-				for pathIter.Next() {
-					pathPart, _ := pathIter.Value().String()
-					path = append(path, pathPart)
-				}
-
-				fmt.Printf("Processing output: %s with path: %v\n", alias, path)
-				processOutput(ctx, taskPath, alias, path, outValue)
+				jqPath, _ := outputDef.LookupPath(cue.ParsePath("path")).String()
+				processOutput(ctx, taskPath, alias, jqPath, outData)
 			}
 		default:
 			fmt.Printf("Unexpected outputs kind: %v\n", outputsValue.Kind())
@@ -388,35 +388,103 @@ func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) 
 	}
 }
 
-func getOutputPath(value cue.Value) ([]string, error) {
-	if value.Kind() != cue.ListKind {
-		return nil, fmt.Errorf("expected list, got %v", value.Kind())
+func processOutput(ctx *flowctx.Context, taskPath, alias, jqPath string, outData interface{}) {
+	if actualValue, ok := queryJQ(outData, jqPath); ok {
+		fullPath := fmt.Sprintf("tasks.%s.outputs.%s", taskPath, alias)
+		setNestedValue(ctx.GlobalVars, fullPath, actualValue)
+	} else {
+		fmt.Printf("Value not found for output: %s at path: %s\n", alias, jqPath)
 	}
-
-	var path []string
-	iter, err := value.List()
-	if err != nil {
-		return nil, err
-	}
-
-	for iter.Next() {
-		str, err := iter.Value().String()
-		if err != nil {
-			return nil, err
-		}
-		path = append(path, str)
-	}
-
-	return path, nil
 }
 
-func processOutput(ctx *flowctx.Context, taskPath, alias string, path []string, outValue cue.Value) {
-	if actualValue := fetchActualValue(outValue, path); actualValue.Exists() {
-		fullPath := fmt.Sprintf("tasks.%s.outputs.%s", taskPath, alias)
-		setNestedValue(ctx.GlobalVars, fullPath, formatValue(actualValue))
-	} else {
-		fmt.Printf("Value not found for output: %s at path: %v\n", alias, path)
+func queryJQ(data interface{}, jqPath string) (interface{}, bool) {
+	query, err := gojq.Parse(jqPath)
+	if err != nil {
+		fmt.Printf("Error parsing JQ query (%s): %v\n", jqPath, err)
+		return nil, false
 	}
+
+	iter := query.Run(data)
+	for {
+		result, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err, isErr := result.(error); isErr {
+			fmt.Printf("Error during JQ query execution: %v\n", err)
+			continue
+		}
+		// Found a non-error result
+		return result, true
+	}
+
+	return nil, false
+}
+
+// Helper function to convert CUE value to interface{} with support for nested maps to arrays
+func convertCueToInterface(v cue.Value) interface{} {
+	switch v.Kind() {
+	case cue.StructKind:
+		result := make(map[string]interface{})
+		iter, _ := v.Fields()
+		for iter.Next() {
+			result[iter.Label()] = convertCueToInterface(iter.Value())
+		}
+		// If the struct has numeric keys, convert to an array
+		if isNumericKeys(result) {
+			return mapToArray(result)
+		}
+		return result
+	case cue.ListKind:
+		var result []interface{}
+		iter, _ := v.List()
+		for iter.Next() {
+			result = append(result, convertCueToInterface(iter.Value()))
+		}
+		return result
+	default:
+		if !v.IsConcrete() {
+			// Log more information about the non-concrete value
+			return fmt.Sprintf("_non_concrete(%s)", v.Path())
+		}
+		var result interface{}
+		if err := v.Decode(&result); err != nil {
+			fmt.Printf("Error decoding value at path %v: %v\n", v.Path(), err)
+			return v
+		}
+		return result
+	}
+}
+
+// Check if a map has all numeric keys
+func isNumericKeys(data map[string]interface{}) bool {
+	for k := range data {
+		if _, err := strconv.Atoi(k); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// Convert a map with numeric keys into an array, handling nested maps recursively
+func mapToArray(data map[string]interface{}) []interface{} {
+	result := make([]interface{}, len(data))
+	for k, v := range data {
+		index, _ := strconv.Atoi(k)
+
+		// Recursively check if the value is also a map that needs conversion
+		switch nestedVal := v.(type) {
+		case map[string]interface{}:
+			if isNumericKeys(nestedVal) {
+				result[index] = mapToArray(nestedVal) // Recursively convert nested map
+			} else {
+				result[index] = nestedVal // Keep as is if not numeric-keyed map
+			}
+		default:
+			result[index] = nestedVal // Regular value, just assign it
+		}
+	}
+	return result
 }
 
 func setNestedValue(m map[string]interface{}, key string, value interface{}) {
