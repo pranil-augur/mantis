@@ -100,7 +100,7 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 
 	// wrap our RunnerFunc with cue/flow RunnerFunc
 	return cueflow.RunnerFunc(func(t *cueflow.Task) error {
-		// fmt.Println("makeTask.func()", t.Index(), t.Path())
+		//fmt.Println("makeTask.func()", t.Index(), t.Path())
 
 		// why do we need a copy?
 		// maybe for local Value / CurrTask
@@ -194,16 +194,9 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Expr, error) {
 	f := value.Syntax(cue.Final()).(ast.Expr)
 
-	inputs, _ := value.LookupPath(cue.ParsePath("inputs")).Fields()
-	inputMap := make(map[string]interface{})
-	for inputs.Next() {
-		inputName := inputs.Label()
-		inputPath, _ := inputs.Value().String() // @todo: handle error
-		if val, ok := lookupNestedValue(globalVars, inputPath); ok {
-			inputMap[inputName] = val
-		} else {
-			return nil, fmt.Errorf("failed to resolve inputs %s: %s", inputName, inputPath)
-		}
+	inputMap, err := createInputMap(value, globalVars)
+	if err != nil {
+		return nil, err
 	}
 
 	injectedNode := astutil.Apply(f, nil, func(c astutil.Cursor) bool {
@@ -224,6 +217,74 @@ func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Ex
 	})
 
 	return injectedNode.(ast.Expr), nil
+}
+
+func createInputMap(value cue.Value, globalVars map[string]interface{}) (map[string]interface{}, error) {
+	inputMap := make(map[string]interface{})
+	inputsValue := value.LookupPath(cue.ParsePath("inputs"))
+
+	if !inputsValue.Exists() {
+		return inputMap, nil
+	}
+
+	inputsList, err := inputsValue.List()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse inputs: %v", err)
+	}
+
+	for inputsList.Next() {
+		input := inputsList.Value()
+		alias, err := input.LookupPath(cue.ParsePath("alias")).String()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get alias for input: %v", err)
+		}
+
+		valueField := input.LookupPath(cue.ParsePath("value"))
+		var valuePaths []string
+
+		switch valueField.Kind() {
+		case cue.StringKind:
+			valuePath, err := valueField.String()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get value path for input %s: %v", alias, err)
+			}
+			valuePaths = []string{valuePath}
+		case cue.ListKind:
+			iter, err := valueField.List()
+			if err != nil {
+				return nil, fmt.Errorf("failed to iterate over value paths for input %s: %v", alias, err)
+			}
+			for iter.Next() {
+				path, err := iter.Value().String()
+				if err != nil {
+					return nil, fmt.Errorf("failed to get value path from list for input %s: %v", alias, err)
+				}
+				valuePaths = append(valuePaths, path)
+			}
+		default:
+			return nil, fmt.Errorf("unexpected value type for input %s: %v", alias, valueField.Kind())
+		}
+
+		var inputValue interface{}
+		for _, path := range valuePaths {
+			if val, ok := lookupNestedValue(globalVars, path); ok {
+				if len(valuePaths) == 1 {
+					inputValue = val
+				} else {
+					if inputValue == nil {
+						inputValue = make([]interface{}, 0)
+					}
+					inputValue = append(inputValue.([]interface{}), val)
+				}
+			} else {
+				return nil, fmt.Errorf("failed to resolve input %s: %s", alias, path)
+			}
+		}
+
+		inputMap[alias] = inputValue
+	}
+
+	return inputMap, nil
 }
 
 func parseRunInjectAttr(attrText string) string {
