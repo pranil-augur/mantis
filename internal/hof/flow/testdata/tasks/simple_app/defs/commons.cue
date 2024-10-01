@@ -31,7 +31,7 @@ package defs
 inputs: _
 
 common: {
-    project_name: "static-website"
+    project_name: "ms101-static-website"
     vpc_cidr:     "10.0.0.0/16"
 }
 

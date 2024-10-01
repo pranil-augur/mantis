@@ -108,8 +108,6 @@ func (t *TFProvidersTask) Run(ctx *hofcontext.Context) (any, error) {
 		if retval < 0 {
 			return nil, fmt.Errorf("error Initializing")
 		}
-	} else {
-		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/init/destroy")
 	}
 	return nil, nil
 }

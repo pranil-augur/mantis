@@ -117,7 +117,6 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute apply command with exit status %d", err)
 		}
-		v.FillPath(cue.ParsePath("out"), parsedVariables)
 		var parsedVariablesMap map[string]interface{}
 		parsedVariablesMap, _ = convertCtyToGo(parsedVariables)
 		// fmt.Printf("Parsed Variables: %+v\n", parsedVariablesMap)
@@ -163,7 +162,6 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute apply command with exit status %d", err)
 		}
-		v.FillPath(cue.ParsePath("out"), parsedVariables)
 		var parsedVariablesMap map[string]interface{}
 		parsedVariablesMap, _ = convertCtyToGo(parsedVariables)
 		// fmt.Printf("Parsed Variables: %+v\n", parsedVariablesMap)

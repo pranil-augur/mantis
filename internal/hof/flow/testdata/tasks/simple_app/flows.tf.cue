@@ -19,10 +19,10 @@ setup_s3_flow: {
         config: {
             resource: {
                 aws_s3_bucket: {
-                    simple_app_bucket_1: {
-                        bucket: "\(defs.common.project_name)-bucket-1"
+                    simple_app_bucket: {
+                        bucket: "\(defs.common.project_name)-bucket"
                         tags: {
-                            Name:        "\(defs.common.project_name)-bucket-1"
+                            Name:        "\(defs.common.project_name)-bucket"
                             Environment: "dev"
                             Project:     defs.common.project_name
                         }
