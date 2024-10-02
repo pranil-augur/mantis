@@ -43,13 +43,10 @@ setup_s3_flow: {
     print_values: {
         @task(opentf.TF)
         dep: setup_s3
-        inputs: {
-            bucket_id: "tasks.setup_s3.outputs.bucket_id"
-        }
         config: {
             output: {
                 bucket_info: {
-                    value: [string] @inject(bucket_id) 
+                    value: [string] @runinject(bucket_id) 
                 }
             }
         }

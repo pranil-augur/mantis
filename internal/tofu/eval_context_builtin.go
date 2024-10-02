@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math/big"
 	"strconv"
 	"strings"
 	"sync"
@@ -98,27 +99,33 @@ func (ctx *BuiltinEvalContext) WithPath(path addrs.ModuleInstance) EvalContext {
 	return &newCtx
 }
 
-func (ctx *BuiltinEvalContext) UpdateHofCtxVariables(key string, vars cty.Value) *map[string]interface{} {
+func (ctx *BuiltinEvalContext) UpdateHofCtxVariables(key string, vars cty.Value) *sync.Map {
+	// Ensure TfContext is initialized
+	if ctx.TfContext == nil {
+		ctx.TfContext = &hofcontext.TFContext{}
+	}
+
+	// Initialize ParsedVariables if it's nil
 	if ctx.TfContext.ParsedVariables == nil {
-		ctx.TfContext.ParsedVariables = &map[string]interface{}{}
+		ctx.TfContext.ParsedVariables = &sync.Map{}
 	}
 
 	parts := strings.FieldsFunc(key, func(r rune) bool {
 		return r == '.' || r == '[' || r == ']'
 	})
 
-	current := *ctx.TfContext.ParsedVariables
+	current := ctx.TfContext.ParsedVariables
 	for i, part := range parts {
 		if i == len(parts)-1 {
 			// At the last part, assign the new value
-			current[part] = vars.AsValueMap()
+			nestedSyncMap := convertToSyncMap(convertCtyValueMapToGoMap(vars.AsValueMap()))
+			current.Store(part, nestedSyncMap)
 		} else {
-			// Check if the current part exists
-			if nextLevel, ok := current[part]; ok {
-				// If it exists, check its type
-				switch v := nextLevel.(type) {
-				case map[string]interface{}:
-					current = v
+			var nextLevel *sync.Map
+			if value, ok := current.Load(part); ok {
+				switch v := value.(type) {
+				case *sync.Map:
+					nextLevel = v
 				case []interface{}:
 					index, err := strconv.Atoi(parts[i+1])
 					if err != nil {
@@ -127,27 +134,101 @@ func (ctx *BuiltinEvalContext) UpdateHofCtxVariables(key string, vars cty.Value)
 					}
 					// Ensure the slice is large enough
 					for len(v) <= index {
-						v = append(v, make(map[string]interface{}))
+						v = append(v, &sync.Map{})
 					}
-					current[part] = v
-					current = v[index].(map[string]interface{})
+					current.Store(part, v)
+					nextLevel = v[index].(*sync.Map)
 					i++ // Skip the next part as we've used it as an index
 				default:
-					// If it's neither a map nor a slice, overwrite with a new map
-					newMap := make(map[string]interface{})
-					current[part] = newMap
-					current = newMap
+					// If it's neither a map nor a slice, overwrite with a new sync.Map
+					nextLevel = &sync.Map{}
+					current.Store(part, nextLevel)
 				}
 			} else {
-				// If it doesn't exist, create a new map
-				newMap := make(map[string]interface{})
-				current[part] = newMap
-				current = newMap
+				// If it doesn't exist, create a new sync.Map
+				nextLevel = &sync.Map{}
+				current.Store(part, nextLevel)
 			}
+			current = nextLevel
 		}
 	}
 
 	return ctx.TfContext.ParsedVariables
+}
+
+func convertCtyValueToInterface(value cty.Value) interface{} {
+	switch {
+	case value.IsNull():
+		return nil
+	case value.Type() == cty.String:
+		return value.AsString()
+	case value.Type() == cty.Number:
+		if v, accuracy := value.AsBigFloat().Float64(); accuracy == big.Exact {
+			return v
+		}
+	case value.Type() == cty.Bool:
+		return value.True()
+	case value.Type().IsMapType() || value.Type().IsObjectType():
+		return convertCtyValueMapToGoMap(value.AsValueMap())
+	case value.Type().IsListType() || value.Type().IsTupleType():
+		slice := value.AsValueSlice()
+		list := make([]interface{}, len(slice))
+		for i, v := range slice {
+			list[i] = convertCtyValueToInterface(v)
+		}
+		return list
+	default:
+		// Handle other types as needed
+		return value.GoString()
+	}
+	return nil
+}
+
+func convertCtyValueMapToGoMap(ctyMap map[string]cty.Value) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	for key, value := range ctyMap {
+		switch {
+		case value.IsNull():
+			result[key] = nil
+		case value.Type() == cty.String:
+			result[key] = value.AsString()
+		case value.Type() == cty.Number:
+			if v, accuracy := value.AsBigFloat().Float64(); accuracy == big.Exact {
+				result[key] = v
+			}
+		case value.Type() == cty.Bool:
+			result[key] = value.True()
+		case value.Type().IsMapType() || value.Type().IsObjectType():
+			result[key] = convertCtyValueMapToGoMap(value.AsValueMap())
+		case value.Type().IsListType() || value.Type().IsTupleType():
+			slice := value.AsValueSlice()
+			list := make([]interface{}, len(slice))
+			for i, v := range slice {
+				list[i] = convertCtyValueToInterface(v)
+			}
+			result[key] = list
+		default:
+			// Handle other types as needed
+			result[key] = value.GoString()
+		}
+	}
+
+	return result
+}
+
+func convertToSyncMap(input map[string]interface{}) *sync.Map {
+	newSyncMap := &sync.Map{}
+	for k, v := range input {
+		// If the value itself is a map, convert it recursively
+		switch nested := v.(type) {
+		case map[string]interface{}:
+			newSyncMap.Store(k, convertToSyncMap(nested))
+		default:
+			newSyncMap.Store(k, v)
+		}
+	}
+	return newSyncMap
 }
 
 func (ctx *BuiltinEvalContext) Stopped() <-chan struct{} {

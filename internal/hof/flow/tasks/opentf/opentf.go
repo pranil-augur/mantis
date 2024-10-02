@@ -13,6 +13,7 @@ package opentf
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -110,7 +111,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		}
 		// Execute the PlanCommand with the configuration file path
 		// planCommand.Meta.ConfigByteArray = scriptBytes
-		parsedVariables := make(map[string]interface{})
+		parsedVariables := sync.Map{}
 		// Create a new TFContext with the parsedVariables
 		tfContext := hofcontext.NewTFContext(&parsedVariables)
 
@@ -119,7 +120,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 			return nil, fmt.Errorf("failed to execute apply command with exit status %d", err)
 		}
 		var parsedVariablesMap map[string]interface{}
-		parsedVariablesMap, _ = convertCtyToGo(parsedVariables)
+		parsedVariablesMap, _ = convertCtyToGo(&parsedVariables)
 		// fmt.Printf("Parsed Variables: %+v\n", parsedVariablesMap)
 		// v.FillPath(cue.ParsePath("out"), parsedVariables)
 		// Attempt to fill the path with the new value
@@ -155,7 +156,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		// Execute the PlanCommand with the configuration file path
 		// planCommand.Meta.ConfigByteArray = scriptBytes
 		// var parsedVariables *map[string]map[string]cty.Value = &map[string]map[string]cty.Value{}
-		parsedVariables := make(map[string]interface{})
+		parsedVariables := sync.Map{}
 		// Create a new TFContext with the parsedVariables
 		tfContext := hofcontext.NewTFContext(&parsedVariables)
 
@@ -164,7 +165,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 			return nil, fmt.Errorf("failed to execute apply command with exit status %d", err)
 		}
 		var parsedVariablesMap map[string]interface{}
-		parsedVariablesMap, _ = convertCtyToGo(parsedVariables)
+		parsedVariablesMap, _ = convertCtyToGo(&parsedVariables)
 		// fmt.Printf("Parsed Variables: %+v\n", parsedVariablesMap)
 		// v.FillPath(cue.ParsePath("out"), parsedVariables)
 		// Attempt to fill the path with the new value
@@ -207,15 +208,30 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	return nil, nil
 }
 
-func convertCtyToGo(input map[string]interface{}) (map[string]interface{}, error) {
+func convertCtyToGo(input *sync.Map) (map[string]interface{}, error) {
 	result := make(map[string]interface{})
+	var conversionError error
 
-	for key, value := range input {
+	input.Range(func(key, value interface{}) bool {
 		convertedValue, err := convertValue(value)
 		if err != nil {
-			return nil, fmt.Errorf("error converting key '%s': %w", key, err)
+			conversionError = fmt.Errorf("error converting key '%v': %w", key, err)
+			return false // Stop iteration on error
 		}
-		result[key] = convertedValue
+
+		// Assuming the key is a string, if not, you may need to convert it
+		strKey, ok := key.(string)
+		if !ok {
+			conversionError = fmt.Errorf("key is not a string: %v", key)
+			return false // Stop iteration
+		}
+
+		result[strKey] = convertedValue
+		return true // Continue iteration
+	})
+
+	if conversionError != nil {
+		return nil, conversionError
 	}
 
 	return result, nil
@@ -231,7 +247,9 @@ func convertValue(value interface{}) (interface{}, error) {
 		return ctyValueToGo(v)
 	case map[string]cty.Value:
 		return convertCtyValueMap(v)
-	case map[string]interface{}:
+	case sync.Map:
+		return convertCtyToGo(&v)
+	case *sync.Map:
 		return convertCtyToGo(v)
 	case []interface{}:
 		return convertSlice(v)

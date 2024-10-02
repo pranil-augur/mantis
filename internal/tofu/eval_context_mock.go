@@ -6,6 +6,8 @@
 package tofu
 
 import (
+	"sync"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/opentofu/opentofu/internal/addrs"
@@ -185,8 +187,8 @@ func (c *MockEvalContext) Input() UIInput {
 	return c.InputInput
 }
 
-func (ctx *MockEvalContext) UpdateHofCtxVariables(key string, vars cty.Value) *map[string]interface{} {
-	(*ctx.TfContext.ParsedVariables)[key] = vars.AsValueMap()
+func (ctx *MockEvalContext) UpdateHofCtxVariables(key string, vars cty.Value) *sync.Map {
+	(*ctx.TfContext.ParsedVariables).Store(key, vars.AsValueMap())
 	return ctx.TfContext.ParsedVariables
 }
 

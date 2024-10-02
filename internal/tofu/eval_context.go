@@ -6,6 +6,8 @@
 package tofu
 
 import (
+	"sync"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/checks"
@@ -219,5 +221,5 @@ type EvalContext interface {
 	// Returns the currently configured encryption setup
 	GetEncryption() encryption.Encryption
 
-	UpdateHofCtxVariables(key string, vars cty.Value) *map[string]interface{}
+	UpdateHofCtxVariables(key string, vars cty.Value) *sync.Map
 }

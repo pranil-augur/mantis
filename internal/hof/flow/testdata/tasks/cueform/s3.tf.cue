@@ -21,7 +21,7 @@ package test
 			"otfork-sample-bucket": {
 				bucket: "otfork-sample-bucket"
 				tags: {
-					Name:  string @runinject(tasks.get_azs_data.output.region)
+					Name:  string @runinject(region)
 					Environment: "dev"
 				}
 			}
@@ -43,9 +43,8 @@ package test
 
 tasks: {
 	@flow(s3_setup)
-
 	setup_providers: {
-		@task(opentf.TF)
+		@task(opentf.TFProviders)
 		config: #providers
 	}
 
@@ -53,9 +52,10 @@ tasks: {
 		@task(opentf.TF)
         dep: setup_providers
 		config: #aws_availability_zones
-		output: {
-			region: "us-east1"
-		}
+		outputs: [{
+            alias: "region"
+            path: ".data.aws_availability_zones.available[0].region"
+        }]
 	}
 
 	setup_s3: {

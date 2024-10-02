@@ -157,11 +157,11 @@ type Runner interface {
 
 // TFContext is a type that includes ParsedVariables which is a map of string keys to another map of string keys and cty.Value values.
 type TFContext struct {
-	ParsedVariables *map[string]interface{}
+	ParsedVariables *sync.Map
 }
 
 // NewTFContext is a constructor for TFContext.
-func NewTFContext(parsedVars *map[string]interface{}) *TFContext {
+func NewTFContext(parsedVars *sync.Map) *TFContext {
 	return &TFContext{
 		ParsedVariables: parsedVars,
 	}
