@@ -195,21 +195,15 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 
 func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Expr, error) {
 	f := value.Syntax(cue.Final()).(ast.Expr)
-
-	inputMap, err := createInputMap(value, globalVars)
-	if err != nil {
-		return nil, err
-	}
-
+	// Process @preinject attributes before @runinject
 	injectedNode := astutil.Apply(f, nil, func(c astutil.Cursor) bool {
 		n := c.Node()
-
 		switch x := n.(type) {
 		case *ast.Field:
 			for _, attr := range x.Attrs {
 				if strings.HasPrefix(attr.Text, "@runinject") {
 					varName := parseRunInjectAttr(attr.Text)
-					if val, ok := inputMap[varName]; ok {
+					if val, ok := globalVars[varName]; ok {
 						x.Value = createASTNodeForValue(val)
 					}
 				}
@@ -240,86 +234,48 @@ func createInputMap(value cue.Value, globalVars map[string]interface{}) (map[str
 		if err != nil {
 			return nil, fmt.Errorf("failed to get alias for input: %v", err)
 		}
+		sourceField := input.LookupPath(cue.ParsePath("source"))
 
-		valueField := input.LookupPath(cue.ParsePath("value"))
-		var valuePaths []string
-
-		switch valueField.Kind() {
+		// Extract value from sourceField based on its kind
+		var sourceValue interface{}
+		switch sourceField.Kind() {
 		case cue.StringKind:
-			valuePath, err := valueField.String()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get value path for input %s: %v", alias, err)
-			}
-			valuePaths = []string{valuePath}
+			sourceValue, err = sourceField.String()
+		case cue.IntKind:
+			sourceValue, err = sourceField.Int64()
+		case cue.FloatKind:
+			sourceValue, err = sourceField.Float64()
+		case cue.BoolKind:
+			sourceValue, err = sourceField.Bool()
 		case cue.ListKind:
-			iter, err := valueField.List()
-			if err != nil {
-				return nil, fmt.Errorf("failed to iterate over value paths for input %s: %v", alias, err)
-			}
-			for iter.Next() {
-				path, err := iter.Value().String()
-				if err != nil {
-					return nil, fmt.Errorf("failed to get value path from list for input %s: %v", alias, err)
-				}
-				valuePaths = append(valuePaths, path)
-			}
+			sourceValue, err = sourceField.List()
+		case cue.StructKind:
+			sourceValue, err = sourceField.Struct()
 		default:
-			return nil, fmt.Errorf("unexpected value type for input %s: %v", alias, valueField.Kind())
+			// For other types, try to get the Go value
+			sourceValue = sourceField.Value()
 		}
 
-		var inputValue interface{}
-		for _, path := range valuePaths {
-			if val, ok := lookupNestedValue(globalVars, path); ok {
-				if len(valuePaths) == 1 {
-					inputValue = val
-				} else {
-					if inputValue == nil {
-						inputValue = make([]interface{}, 0)
-					}
-					inputValue = append(inputValue.([]interface{}), val)
-				}
-			} else {
-				return nil, fmt.Errorf("failed to resolve input %s: %s", alias, path)
-			}
+		if err != nil {
+			return nil, fmt.Errorf("failed to get value for input %s: %v", alias, err)
 		}
 
-		inputMap[alias] = inputValue
+		inputMap[alias] = sourceValue
 	}
 
 	return inputMap, nil
+}
+
+func parsePreinjectAttr(attrText string) string {
+	attrText = strings.TrimPrefix(attrText, "@preinject(")
+	attrText = strings.TrimSuffix(attrText, ")")
+	return strings.Trim(attrText, "\"")
 }
 
 func parseRunInjectAttr(attrText string) string {
 	attrText = strings.TrimPrefix(attrText, "@runinject(")
 	attrText = strings.TrimSuffix(attrText, ")")
 	return strings.Trim(attrText, "\"")
-}
-
-func lookupNestedValue(m map[string]interface{}, key string) (interface{}, bool) {
-	parts := strings.Split(key, ".")
-	current := m
-
-	for i, part := range parts {
-		if i == len(parts)-1 {
-			// We've reached the final part, return the value
-			if val, ok := current[part]; ok {
-				return val, true
-			}
-			return nil, false
-		}
-
-		if val, ok := current[part]; ok {
-			if nextMap, isMap := val.(map[string]interface{}); isMap {
-				current = nextMap
-			} else {
-				// We've hit a non-map value before the end of the path
-				return nil, false
-			}
-		} else {
-			return nil, false
-		}
-	}
-	return nil, false
 }
 
 func createASTNodeForValue(val interface{}) ast.Expr {
@@ -358,7 +314,6 @@ func createASTNodeForValue(val interface{}) ast.Expr {
 }
 
 func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) {
-	taskPath := bt.ID
 	outputsValue := bt.Final.LookupPath(cue.ParsePath("outputs"))
 	outValue := value.LookupPath(cue.ParsePath("out"))
 
@@ -378,7 +333,8 @@ func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) 
 				outputDef := iter.Value()
 				alias, _ := outputDef.LookupPath(cue.ParsePath("alias")).String()
 				jqPath, _ := outputDef.LookupPath(cue.ParsePath("path")).String()
-				processOutput(ctx, taskPath, alias, jqPath, outData)
+				actualValue := processOutput(alias, jqPath, outData)
+				ctx.GlobalVars[alias] = actualValue
 			}
 		default:
 			fmt.Printf("Unexpected outputs kind: %v\n", outputsValue.Kind())
@@ -388,15 +344,16 @@ func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) 
 	}
 }
 
-func processOutput(ctx *flowctx.Context, taskPath, alias, jqPath string, outData interface{}) {
+func processOutput(alias, jqPath string, outData interface{}) interface{} {
 	if actualValue, ok := queryJQ(outData, jqPath); ok {
-		fullPath := fmt.Sprintf("tasks.%s.outputs.%s", taskPath, alias)
-		setNestedValue(ctx.GlobalVars, fullPath, actualValue)
+		return actualValue
 	} else {
 		fmt.Printf("Value not found for output: %s at path: %s\n", alias, jqPath)
+		return nil
 	}
 }
 
+// ... existing queryJQ function ...
 func queryJQ(data interface{}, jqPath string) (interface{}, bool) {
 	query, err := gojq.Parse(jqPath)
 	if err != nil {
@@ -502,87 +459,3 @@ func setNestedValue(m map[string]interface{}, key string, value interface{}) {
 		}
 	}
 }
-
-func fetchActualValue(value cue.Value, path []string) cue.Value {
-	current := value
-	for _, part := range path {
-		current = current.LookupPath(cue.ParsePath(part))
-		if !current.Exists() {
-			fmt.Printf("Path part not found: %s\n, looking for key with quotes", part)
-			current = value.LookupPath(cue.ParsePath(fmt.Sprintf("%q", cue.ParsePath(part))))
-		}
-
-		if !current.Exists() {
-			fmt.Printf("Not found with double quotes. Looking for backticks %s\n", part)
-			current = value.LookupPath(cue.ParsePath(fmt.Sprintf("`%s`", part)))
-		}
-
-		if !current.Exists() {
-			fmt.Printf("Path part not found: %s\n", part)
-			return cue.Value{}
-		}
-	}
-	return current
-}
-
-func formatValue(v cue.Value) interface{} {
-	switch v.Kind() {
-	case cue.StringKind:
-		str, _ := v.String()
-		return str
-	case cue.IntKind:
-		i, _ := v.Int64()
-		return i
-	case cue.FloatKind:
-		f, _ := v.Float64()
-		return f
-	case cue.BoolKind:
-		b, _ := v.Bool()
-		return b
-	case cue.StructKind:
-		m := make(map[string]interface{})
-		iter, _ := v.Fields()
-		for iter.Next() {
-			m[iter.Label()] = formatValue(iter.Value())
-		}
-		return m
-	case cue.ListKind:
-		var list []interface{}
-		iter, _ := v.List()
-		for iter.Next() {
-			list = append(list, formatValue(iter.Value()))
-		}
-		return list
-	default:
-		return fmt.Sprint(v)
-	}
-}
-
-// func debugPrintCueValue(label string, v cue.Value) {
-// 	fmt.Printf("--- Debug: %s ---\n", label)
-// 	fmt.Printf("Kind: %v\n", v.Kind())
-
-// 	switch v.Kind() {
-// 	case cue.StructKind:
-// 		fmt.Println("Structure:")
-// 		iter, _ := v.Fields()
-// 		for iter.Next() {
-// 			fmt.Printf("  %s: %v\n", iter.Label(), iter.Value())
-// 		}
-// 	case cue.ListKind:
-// 		fmt.Println("List:")
-// 		list, _ := v.List()
-// 		for list.Next() {
-// 			fmt.Printf("  %v\n", list.Value())
-// 		}
-// 	default:
-// 		fmt.Printf("Value: %v\n", v)
-// 	}
-
-// 	// Print CUE syntax representation
-// 	syn := v.Syntax(cue.Final())
-// 	bytes, _ := cueformat.Node(syn)
-// 	fmt.Printf("CUE syntax:\n%s\n", string(bytes))
-
-// 	fmt.Println("------------------------")
-// }
