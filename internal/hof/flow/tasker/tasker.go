@@ -345,15 +345,26 @@ func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) 
 }
 
 func processOutput(alias, jqPath string, outData interface{}) interface{} {
-	if actualValue, ok := queryJQ(outData, jqPath); ok {
-		return actualValue
-	} else {
+	actualValue, ok := queryJQ(outData, jqPath)
+	if !ok {
 		fmt.Printf("Value not found for output: %s at path: %s\n", alias, jqPath)
 		return nil
 	}
+
+	// Determine if the query should return an array
+	if shouldReturnArray(jqPath) {
+		// Ensure the result is always an array
+		if slice, isSlice := actualValue.([]interface{}); isSlice {
+			return slice
+		}
+		// If it's not already a slice, wrap it in one
+		return []interface{}{actualValue}
+	}
+
+	// For non-array queries, return the value as-is
+	return actualValue
 }
 
-// ... existing queryJQ function ...
 func queryJQ(data interface{}, jqPath string) (interface{}, bool) {
 	query, err := gojq.Parse(jqPath)
 	if err != nil {
@@ -362,6 +373,8 @@ func queryJQ(data interface{}, jqPath string) (interface{}, bool) {
 	}
 
 	iter := query.Run(data)
+	var results []interface{}
+
 	for {
 		result, ok := iter.Next()
 		if !ok {
@@ -371,11 +384,29 @@ func queryJQ(data interface{}, jqPath string) (interface{}, bool) {
 			fmt.Printf("Error during JQ query execution: %v\n", err)
 			continue
 		}
-		// Found a non-error result
-		return result, true
+		results = append(results, result)
 	}
 
-	return nil, false
+	if len(results) == 0 {
+		return nil, false
+	}
+	if len(results) == 1 {
+		return results[0], true
+	}
+	return results, true
+}
+
+func shouldReturnArray(jqPath string) bool {
+	// Check if the query ends with '[]' or contains '[*]'
+	return strings.HasSuffix(jqPath, "[]") || strings.Contains(jqPath, "[*]") ||
+		// Check for array operations like '.[]'
+		strings.Contains(jqPath, ".[]") ||
+		// Check for patterns like ".module.vpc.aws_subnet.public[].id"
+		strings.Contains(jqPath, "[].") ||
+		// Check for map operations that result in arrays
+		strings.Contains(jqPath, "| keys") || strings.Contains(jqPath, "| values") ||
+		// Add more conditions as needed for other array-producing operations
+		strings.Contains(jqPath, "| to_entries")
 }
 
 // Helper function to convert CUE value to interface{} with support for nested maps to arrays
