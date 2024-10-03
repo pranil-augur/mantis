@@ -74,6 +74,9 @@ type Context struct {
 
 	// output vars
 	GlobalVars map[string]interface{}
+	// store flow errors and warnings
+	FlowErrors   []string
+	FlowWarnings []string
 }
 
 func New() *Context {
@@ -89,6 +92,8 @@ func New() *Context {
 		Pools:        new(sync.Map),
 		CueContext:   nil,
 		GlobalVars:   make(map[string]interface{}),
+		FlowErrors:   []string{},
+		FlowWarnings: []string{},
 	}
 }
 
@@ -137,6 +142,16 @@ func (C *Context) Lookup(key string) RunnerFunc {
 		return nil
 	}
 	return v.(RunnerFunc)
+}
+
+// AddError adds an error to the flow errors.
+func (C *Context) AddError(errString string) {
+	C.FlowErrors = append(C.FlowErrors, errString)
+}
+
+// AddWarning adds a warning to the flow warnings.
+func (C *Context) AddWarning(warning string) {
+	C.FlowWarnings = append(C.FlowWarnings, warning)
 }
 
 // Middleware to apply to RunnerFuncs

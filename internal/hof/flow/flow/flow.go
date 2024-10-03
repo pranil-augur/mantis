@@ -140,6 +140,18 @@ func (P *Flow) run() error {
 
 	// fmt.Println("Flow.run() start")
 	err := P.Ctrl.Run(P.FlowCtx.GoContext)
+
+	//print error from ctx.FlowErrors and ctx.FlowWarnings
+	if len(P.FlowCtx.FlowErrors) > 0 || len(P.FlowCtx.FlowWarnings) > 0 {
+		for _, err := range P.FlowCtx.FlowErrors {
+			cuetils.PrintWarningOrError(false, err)
+		}
+		for _, warning := range P.FlowCtx.FlowWarnings {
+			cuetils.PrintWarningOrError(true, warning)
+		}
+		cuetils.PrintWarningOrError(true, "Refer terraform module documentation for more details on the above errors and warnings")
+	}
+
 	// fmt.Println("Flow.run() end", err)
 
 	// fmt.Println("flow(end):", P.path, P.rpath)

@@ -12,6 +12,7 @@ package tasker
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -116,7 +117,7 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 
 		// Inject variables before running the task
 		// (only if we are applying)
-		injectedNode, err := injectVariables(node.Value, c.GlobalVars)
+		injectedNode, err := injectVariables(c, bt.ID, node.Value, c.GlobalVars)
 		if err != nil {
 			return fmt.Errorf("error injecting variables: %v", err)
 		}
@@ -182,6 +183,16 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 			// --------------------------------
 		}
 
+		// WARNING: this is because we're making a copy of ctx
+		// TODO: fix the copying of ctx for local
+		// push all errors and warnings from c to ctx
+		for _, err := range c.FlowErrors {
+			ctx.AddError(err)
+		}
+		for _, warn := range c.FlowWarnings {
+			ctx.AddWarning(warn)
+		}
+
 		if rerr != nil {
 			rerr = fmt.Errorf("in %q\n%v\n%+v", c.Value.Path(), cuetils.ExpandCueError(rerr), value)
 			// fmt.Println("RunnerRunc Error:", err)
@@ -194,7 +205,7 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 	}), nil
 }
 
-func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Expr, error) {
+func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globalVars map[string]interface{}) (ast.Expr, error) {
 	f := value.Syntax(cue.Final()).(ast.Expr)
 	// Process @preinject attributes before @runinject
 	injectedNode := astutil.Apply(f, nil, func(c astutil.Cursor) bool {
@@ -207,14 +218,8 @@ func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Ex
 					if val, ok := globalVars[varName]; ok {
 						x.Value = createASTNodeForValue(val)
 					} else {
-						fmt.Printf("Warning: Unable to find runtime alias: %v\n", varName)
-						// print global vars
-						fmt.Printf("Please see if it's mispelt.\n")
-						// Print all globalVars as key-value pairs
-						fmt.Println("Currently available runtime aliases: ")
-						for k, v := range globalVars {
-							fmt.Printf("%s: %v\n", k, v)
-						}
+						warningMessage := buildWarningMessage(varName, taskId, globalVars)
+						ctx.AddError(warningMessage)
 					}
 				}
 			}
@@ -223,6 +228,26 @@ func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Ex
 	})
 
 	return injectedNode.(ast.Expr), nil
+}
+
+func buildWarningMessage(varName string, taskId string, globalVars map[string]interface{}) string {
+	var warningMsg strings.Builder
+
+	warningMsg.WriteString(fmt.Sprintf("Alias '%v' not found in task '%v'\n", varName, taskId))
+	warningMsg.WriteString("Available aliases:\n")
+
+	// Sort the keys for consistent output
+	keys := make([]string, 0, len(globalVars))
+	for k := range globalVars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		warningMsg.WriteString(fmt.Sprintf("  %s\n", k))
+	}
+
+	return warningMsg.String()
 }
 
 func parseRunInjectAttr(attrText string) string {
@@ -289,7 +314,7 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 				outputDef := iter.Value()
 				alias, _ := outputDef.LookupPath(cue.ParsePath("alias")).String()
 				jqPath, _ := outputDef.LookupPath(cue.ParsePath("path")).String()
-				actualValue := processOutput(alias, jqPath, outData)
+				actualValue := processOutput(ctx, alias, jqPath, outData)
 				ctx.GlobalVars[alias] = actualValue
 			}
 		default:
@@ -300,10 +325,10 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 	}
 }
 
-func processOutput(alias, jqPath string, outData interface{}) interface{} {
+func processOutput(ctx *flowctx.Context, alias, jqPath string, outData interface{}) interface{} {
 	actualValue, ok := queryJQ(outData, jqPath)
 	if !ok {
-		fmt.Printf("Value not found at path: %s for alias: %s\n", jqPath, alias)
+		ctx.AddError(fmt.Sprintf("Value not found at path: %s for alias: %s\n", jqPath, alias))
 		return nil
 	}
 

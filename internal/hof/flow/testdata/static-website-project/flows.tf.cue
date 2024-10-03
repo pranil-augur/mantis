@@ -45,7 +45,7 @@ tasks: {
 		dep:    setup_vpc
 		config: defs.subnet_group
 		outputs: [{
-			alias: "subnet_group_id"
+			alias: "subnet_group_ids"
 			path:  ".aws_db_subnet_group.this[0].id"
 		}]
 	}

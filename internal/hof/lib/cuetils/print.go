@@ -200,3 +200,16 @@ func (CR *CueRuntime) PrintCueErrors() {
 		PrintCueError(err)
 	}
 }
+
+func PrintWarningOrError(isWarning bool, message string) {
+	prefix := "Error"
+	color := "\033[31m" // Red color for error
+
+	if isWarning {
+		prefix = "Warning"
+		color = "\033[33m" // Yellow color for warning
+	}
+
+	resetColor := "\033[0m"
+	fmt.Printf("%s%s:%s %s\n", color, prefix, resetColor, message)
+}
