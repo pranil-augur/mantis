@@ -47,9 +47,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	jsonScript, err := script.MarshalJSON()
 	// Print the JSON representation of the script
 	if err != nil {
-		fmt.Printf("Error marshalling script to JSON: %v\n", jsonScript)
-
-		return nil, fmt.Errorf("error marshalling script to JSON: %v", err)
+		return nil, fmt.Errorf("error marshalling script to json: %v", err)
 	}
 	scriptStr := string(jsonScript)
 
