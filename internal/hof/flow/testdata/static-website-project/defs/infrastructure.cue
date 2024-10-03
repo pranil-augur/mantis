@@ -1,9 +1,9 @@
 package defs
 
 #infrastructure: {
-    module: {
-        "vpc": vpc
-        "rds": rds
-        "ec2": ec2
-    }
+	module: {
+		"vpc": vpc
+		"rds": rds
+		"ec2": ec2
+	}
 }

@@ -116,13 +116,11 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 
 		// Inject variables before running the task
 		// (only if we are applying)
-		if ctx.Apply {
-			injectedNode, err := injectVariables(node.Value, c.GlobalVars)
-			if err != nil {
-				return fmt.Errorf("error injecting variables: %v", err)
-			}
-			c.Value = c.CueContext.BuildExpr(injectedNode)
+		injectedNode, err := injectVariables(node.Value, c.GlobalVars)
+		if err != nil {
+			return fmt.Errorf("error injecting variables: %v", err)
 		}
+		c.Value = c.CueContext.BuildExpr(injectedNode)
 
 		// fmt.Println("Injected value: %v", c.Value)
 

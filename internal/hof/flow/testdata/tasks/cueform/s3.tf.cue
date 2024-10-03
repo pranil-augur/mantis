@@ -1,17 +1,17 @@
 package test
 
 #providers: {
-    provider: {
-        "aws": {}
-    }
-    terraform: {
-        required_providers: {
-            aws: {
-                source:  "hashicorp/aws"
-                version: ">= 4.67.0"
-            }
-        }
-    }
+	provider: {
+		"aws": {}
+	}
+	terraform: {
+		required_providers: {
+			aws: {
+				source:  "hashicorp/aws"
+				version: ">= 4.67.0"
+			}
+		}
+	}
 }
 
 // S3 bucket configuration
@@ -21,7 +21,7 @@ package test
 			"otfork-sample-bucket": {
 				bucket: "otfork-sample-bucket"
 				tags: {
-					Name:  string @runinject(available_zones)
+					Name:        _  | *null @runinject(available_zones)
 					Environment: "dev"
 				}
 			}
@@ -30,16 +30,16 @@ package test
 }
 
 #aws_availability_zones: {
-    "data": {
-        "aws_availability_zones": {
-            "available": [
-                {
-                    "state": "available" 
-                }
-            ]
-        }
-    },
-} 
+	"data": {
+		"aws_availability_zones": {
+			"available": [
+				{
+					"state": "available"
+				},
+			]
+		}
+	}
+}
 
 tasks: {
 	@flow(s3_setup)
@@ -50,12 +50,12 @@ tasks: {
 
 	get_azs_data: {
 		@task(opentf.TF)
-        dep: setup_providers
+		dep:    setup_providers
 		config: #aws_availability_zones
 		outputs: [{
-            alias: "available_zones"
-            path: ".data.aws_availability_zones.available.id"
-        }]
+			alias: "available_zones"
+			path:  ".data.aws_availability_zones.available.id"
+		}]
 	}
 
 	setup_s3: {
