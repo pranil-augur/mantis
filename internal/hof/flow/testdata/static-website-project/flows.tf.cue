@@ -23,6 +23,9 @@ tasks: {
 			alias: "public_subnet_ids"
 			path:  ".module.vpc.aws_subnet.public[].id"
 		}, {
+			alias: "public_subnet_id"
+			path:  ".module.vpc.aws_subnet.public[0].id"
+		}, {
 			alias: "private_subnet_ids"
 			path:  ".module.vpc.aws_subnet.private[].id"
 		}, {

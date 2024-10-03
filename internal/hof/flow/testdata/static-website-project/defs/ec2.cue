@@ -4,13 +4,13 @@ import (
 	"augur.ai/static-website/schemas"
 )
 
-ec2: module: schemas.#ModuleEC2 & {
+ec2: module: ec2_instance: schemas.#ModuleEC2 & {
 	source:        "terraform-aws-modules/ec2-instance/aws"
 	version:       "~> 4.3"
 	name:          "\(common.project_name)-instance"
 	ami:           "ami-0c55b159cbfafe1f0" // Amazon Linux 2 AMI (HVM), SSD Volume Type
 	instance_type: "t2.micro"
-    subnet_id: string | *null @runinject(public_subnet_id)
+	subnet_id:     string | *null @runinject(public_subnet_id)
 	user_data: """
 		#!/bin/bash
 		amazon-linux-extras install docker
