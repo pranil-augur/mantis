@@ -1,14 +1,18 @@
-package main
+package staticwebsite
 
 import (
 	"augur.ai/static-website/defs"
 )
 
-tasks: {
-	@flow(static_website_setup)
+// Tagging a file with @flow(name) creates a flow with the given name.
+// 1. It's the entry point for the program. Mantis looks for this tag across all files, and executes all top level flows.
+// 2. Mantis can execute a flow by name using -F flow_name. This provides multiple entry and exit points 
+
+@flow(static_website_setup)
+install_static_website: {
 
 	setup_providers: {
-		@task(opentf.TFProviders)
+		@task(opentf.TF)
 		config: defs.#providers
 	}
 

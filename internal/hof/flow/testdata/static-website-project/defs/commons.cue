@@ -1,19 +1,5 @@
 package defs
 
-#outputdef: {
-	alias: string // alias used to store the output value
-	path:  string // jq expression to extract the value from the task result
-}
-
-#TFTask: {
-	@task(opentf.TF)
-	config: _
-	dep:    _
-	out:    _
-	outputs?: [...#outputdef]
-	inputs?: _
-}
-
 #providers: {
 	provider: {
 		"aws": {}
@@ -27,8 +13,6 @@ package defs
 		}
 	}
 }
-
-inputs: _
 
 common: {
 	project_name:            "static-website"

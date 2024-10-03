@@ -83,6 +83,4 @@ func runFlowFromFileOrDir(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Error running flow: %v\n", err)
 		os.Exit(1)
 	}
-
-	fmt.Println("Flow completed successfully")
 }
