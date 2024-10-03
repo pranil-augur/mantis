@@ -12,6 +12,9 @@ package flow
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
+
 	// "sync"
 
 	"cuelang.org/go/cue"
@@ -131,6 +134,10 @@ func (P *Flow) run() error {
 	// create the workflow which will build the task graph
 	P.Ctrl = cueflow.New(cfg, u, tasker.NewTasker(P.FlowCtx))
 
+	if P.FlowCtx.Plan {
+		createAndPrintMantisPlan(P.FlowCtx)
+	}
+
 	// fmt.Println("Flow.run() start")
 	err := P.Ctrl.Run(P.FlowCtx.GoContext)
 	// fmt.Println("Flow.run() end", err)
@@ -147,4 +154,216 @@ func (P *Flow) run() error {
 	// fmt.Println("NOT HERE", P.Orig.Path())
 
 	return nil
+}
+
+func createAndPrintMantisPlan(ctx *flowctx.Context) (map[string]interface{}, error) {
+	tfResources := make(map[string]interface{})
+	v := ctx.RootValue
+
+	if ctx.Plan {
+		// Recursively scan the CUE value tree for resources
+		err := scanForLabels(v, cue.Path{}, tfResources, "resource", "module")
+		if err != nil {
+			return nil, fmt.Errorf("error scanning for resources: %v", err)
+		}
+
+		if len(tfResources) == 0 {
+			return nil, fmt.Errorf("no resources found in the CUE configuration")
+		}
+	}
+
+	// fmt.Println("tfResources:", tfResources)
+	if len(tfResources) > 0 {
+		fmt.Println("Resource Summary:")
+		fmt.Println("---------------------------")
+		for resourceType, resources := range tfResources {
+			fmt.Printf("%s\n", resourceType)
+			switch r := resources.(type) {
+			case map[string]interface{}:
+				printResourceTree(r, 1)
+			case []interface{}:
+				for _, resource := range r {
+					if m, ok := resource.(map[string]interface{}); ok {
+						printResourceTree(m, 1)
+					}
+				}
+			}
+		}
+		fmt.Println("---------------------------")
+	} else {
+		fmt.Println("No resources found in the plan.")
+	}
+	return tfResources, nil
+}
+
+func scanForLabels(v cue.Value, path cue.Path, resources map[string]interface{}, labels ...string) error {
+	switch v.Kind() {
+	case cue.StructKind:
+		iter, err := v.Fields()
+		if err != nil {
+			return fmt.Errorf("error iterating over fields: %v", err)
+		}
+
+		for iter.Next() {
+			label := iter.Label()
+			newPath := cue.ParsePath(path.String() + "." + label)
+			if contains(labels, label) {
+				err := extractLabeledItem(iter.Value(), newPath, resources, label)
+				if err != nil {
+					return err
+				}
+			} else {
+				err := scanForLabels(iter.Value(), newPath, resources, labels...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+	case cue.ListKind:
+		list, err := v.List()
+		if err != nil {
+			return fmt.Errorf("error getting list: %v", err)
+		}
+
+		for i := 0; list.Next(); i++ {
+			newPath := cue.ParsePath(path.String() + "." + strconv.Itoa(i))
+			err := scanForLabels(list.Value(), newPath, resources, labels...)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+func extractLabeledItem(v cue.Value, path cue.Path, resources map[string]interface{}, label string) error {
+	iter, err := v.Fields()
+	if err != nil {
+		return fmt.Errorf("error iterating over %s fields: %v", label, err)
+	}
+
+	itemMap, ok := resources[label].(map[string]interface{})
+	if !ok {
+		itemMap = make(map[string]interface{})
+		resources[label] = itemMap
+	}
+
+	for iter.Next() {
+		itemType := iter.Label()
+		itemValue := iter.Value()
+
+		if label == "module" {
+			// For modules, we don't have an additional nesting level
+			configMap, err := extractConfigMap(itemValue)
+			if err != nil {
+				return fmt.Errorf("error extracting config for %s %s: %v", label, itemType, err)
+			}
+			itemMap[itemType] = configMap
+		} else {
+			// For resources, we keep the existing structure
+			itemIter, err := itemValue.Fields()
+			if err != nil {
+				return fmt.Errorf("error iterating over %s %s: %v", label, itemType, err)
+			}
+
+			if _, ok := itemMap[itemType]; !ok {
+				itemMap[itemType] = make(map[string]interface{})
+			}
+
+			for itemIter.Next() {
+				itemName := itemIter.Label()
+				itemConfig := itemIter.Value()
+
+				configMap, err := extractConfigMap(itemConfig)
+				if err != nil {
+					return fmt.Errorf("error extracting config for %s %s.%s: %v", label, itemType, itemName, err)
+				}
+
+				itemMap[itemType].(map[string]interface{})[itemName] = configMap
+			}
+		}
+	}
+
+	return nil
+}
+
+func extractConfigMap(v cue.Value) (map[string]interface{}, error) {
+	configMap := make(map[string]interface{})
+
+	switch v.Kind() {
+	case cue.StructKind:
+		iter, err := v.Fields()
+		if err != nil {
+			return nil, fmt.Errorf("error iterating over config fields: %v", err)
+		}
+
+		for iter.Next() {
+			field := iter.Label()
+			value := iter.Value()
+
+			var goValue interface{}
+			var err error
+			goValue, err = value.String()
+			if err != nil {
+				goValue = fmt.Sprintf("%v", value)
+			}
+
+			configMap[field] = goValue
+		}
+	default:
+		// For non-struct types (like strings), just return the value directly
+		var goValue interface{}
+		err := v.Decode(&goValue)
+		if err != nil {
+			return nil, fmt.Errorf("error decoding value: %v", err)
+		}
+		return map[string]interface{}{"value": goValue}, nil
+	}
+
+	return configMap, nil
+}
+
+func printResourceTree(resource map[string]interface{}, depth int) {
+	indent := strings.Repeat("  ", depth)
+	for name, details := range resource {
+		fmt.Printf("%s├─ %s", indent, name)
+		if detailMap, ok := details.(map[string]interface{}); ok {
+			if len(detailMap) > 0 {
+				fmt.Println()
+				//printResourceDetails(detailMap, depth+1)
+			} else {
+				fmt.Println()
+			}
+		} else {
+			fmt.Println()
+		}
+	}
+}
+
+func printResourceDetails(details map[string]interface{}, depth int) {
+	indent := strings.Repeat("  ", depth)
+	for key, value := range details {
+		fmt.Printf("%s├─ %s", indent, key)
+		if subMap, ok := value.(map[string]interface{}); ok {
+			if len(subMap) > 0 {
+				fmt.Println()
+				printResourceDetails(subMap, depth+1)
+			} else {
+				fmt.Println()
+			}
+		} else {
+			fmt.Println()
+		}
+	}
 }

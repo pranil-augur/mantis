@@ -24,3 +24,17 @@ vpc: {
         }
     }
 }
+
+subnet_group: {
+    resource: {
+        aws_db_subnet_group: education: {
+        name:       "education"
+            subnet_ids: [...string] @runinject(public_subnet_ids)
+            tags: {
+                Name: "Education"
+            }
+        }
+    }
+}
+
+

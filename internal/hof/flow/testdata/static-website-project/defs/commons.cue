@@ -1,8 +1,8 @@
 package defs
 
 #outputdef: {
-    alias: string
-    path:  [...string]
+    alias: string // alias used to store the output value
+    path:  string // jq expression to extract the value from the task result
 }
 
 #TFTask: {
@@ -40,7 +40,7 @@ common: {
 }
 
 locals: {
-    azs: ["us-west-1a"] //, "us-east-1b"]
+    azs: ["us-west-1a", "us-west-1c"] 
     private_subnets: ["10.0.1.0/24", "10.0.2.0/24"]
     public_subnets:  ["10.0.101.0/24", "10.0.102.0/24"]
 }

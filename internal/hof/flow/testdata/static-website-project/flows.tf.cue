@@ -31,20 +31,29 @@ tasks: {
         }, {
             alias: "nat_public_ips"
             path: ".module.vpc.aws_eip.nat[].public_ip"
-        },{
+        }, {
             alias: "default_security_group_id"
             path: ".module.vpc.aws_default_security_group.this[].id"
         }]
     }
 
-    setup_rds: {
+    db_subnet_group: {
         @task(opentf.TF)
         dep: setup_vpc
-        
+        config: defs.subnet_group
+        outputs: [{
+            alias: "subnet_group_id"
+            path: ".aws_db_subnet_group.this[0].id"
+        }]
+    }
+
+    setup_rds: {
+        @task(opentf.TF)
+        dep: [setup_vpc, db_subnet_group]
         config: defs.rds
         outputs: [{
             alias: "rds_endpoint"
-            path: ["module", "rds", "db_instance_endpoint"]
+            path: ".aws_db_instance.this[0].endpoint"
         }]
     }
 

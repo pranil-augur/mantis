@@ -115,11 +115,14 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		}
 
 		// Inject variables before running the task
-		injectedNode, err := injectVariables(node.Value, c.GlobalVars)
-		if err != nil {
-			return fmt.Errorf("error injecting variables: %v", err)
+		// (only if we are applying)
+		if ctx.Apply {
+			injectedNode, err := injectVariables(node.Value, c.GlobalVars)
+			if err != nil {
+				return fmt.Errorf("error injecting variables: %v", err)
+			}
+			c.Value = c.CueContext.BuildExpr(injectedNode)
 		}
-		c.Value = c.CueContext.BuildExpr(injectedNode)
 
 		// fmt.Println("Injected value: %v", c.Value)
 
@@ -169,7 +172,7 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 				return err
 			}
 			if cueValue, ok := value.(cue.Value); ok {
-				updateGlobalVars(c, bt, cueValue)
+				updateGlobalVars(c, cueValue)
 			} else {
 				return fmt.Errorf("expected cue.Value, got %T", value)
 			}
@@ -266,7 +269,7 @@ func createInputMap(value cue.Value, globalVars map[string]interface{}) (map[str
 	return inputMap, nil
 }
 
-func parsePreinjectAttr(attrText string) string {
+func parsePreInjectAttr(attrText string) string {
 	attrText = strings.TrimPrefix(attrText, "@preinject(")
 	attrText = strings.TrimSuffix(attrText, ")")
 	return strings.Trim(attrText, "\"")
@@ -309,19 +312,22 @@ func createASTNodeForValue(val interface{}) ast.Expr {
 		return &ast.StructLit{Elts: fields}
 	default:
 		// For any other types, convert to string as a fallback
-		return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(fmt.Sprintf("%v", v))}
+		return &ast.BasicLit{Kind: token.NULL, Value: ast.NewNull().Value}
 	}
 }
 
-func updateGlobalVars(ctx *flowctx.Context, bt *task.BaseTask, value cue.Value) {
-	outputsValue := bt.Final.LookupPath(cue.ParsePath("outputs"))
+func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
+	outputsValue := value.LookupPath(cue.ParsePath("outputs"))
 	outValue := value.LookupPath(cue.ParsePath("out"))
+	// Check if outputsValue is null
+	if !outputsValue.Exists() {
+		return
+	}
 
 	// Parse outValue into a Go object
 	var outData interface{}
 	if err := outValue.Decode(&outData); err != nil {
 		// Instead of returning immediately, let's try to work with the partial data
-		fmt.Printf("Error decoding outValue: %v\n", err)
 		outData = convertCueToInterface(outValue)
 	}
 

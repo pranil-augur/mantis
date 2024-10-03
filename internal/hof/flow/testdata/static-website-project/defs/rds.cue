@@ -13,12 +13,12 @@ rds: {
                 identifier:              "\(common.project_name)-db"
                 engine:                  "postgres"
                 engine_version:          "14.1"
-                instance_class:          "db.t3.micro"
-                allocated_storage:       5
+                instance_class:          "db.t3.micro"  
+                allocated_storage:       5 
                 username:                "\(common.db_username)"
                 password:                "\(common.db_password)" // Assuming `common.db_password` is defined
-                db_subnet_group_name:    "\(common.db_subnet_group_name)"
-                vpc_security_group_ids: [string] @runinject(default_security_group_id)
+                db_subnet_group_name:    string @runinject(subnet_group_id)
+                vpc_security_group_ids: [...string] @runinject(default_security_group_id)
                 parameter_group_name:    "\(common.db_parameter_group_name)"
                 publicly_accessible:     true
                 skip_final_snapshot:     true

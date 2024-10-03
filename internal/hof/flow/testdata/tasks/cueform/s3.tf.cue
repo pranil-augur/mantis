@@ -21,7 +21,7 @@ package test
 			"otfork-sample-bucket": {
 				bucket: "otfork-sample-bucket"
 				tags: {
-					Name:  string @runinject(region)
+					Name:  string @runinject(available_zones)
 					Environment: "dev"
 				}
 			}
@@ -53,8 +53,8 @@ tasks: {
         dep: setup_providers
 		config: #aws_availability_zones
 		outputs: [{
-            alias: "region"
-            path: ".data.aws_availability_zones.available[0].region"
+            alias: "available_zones"
+            path: ".data.aws_availability_zones.available.id"
         }]
 	}
 

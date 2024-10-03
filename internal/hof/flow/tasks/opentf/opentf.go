@@ -45,15 +45,14 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 
 	// Marshal the unified result to JSON
 	jsonScript, err := script.MarshalJSON()
-
 	// Print the JSON representation of the script
 	if err != nil {
+		fmt.Printf("Error marshalling script to JSON: %v\n", jsonScript)
+
 		return nil, fmt.Errorf("error marshalling script to JSON: %v", err)
 	}
 	scriptStr := string(jsonScript)
-	if err != nil {
-		return nil, fmt.Errorf("error retrieving script as string: %v", err)
-	}
+
 	// Serialize JSON string to bytes
 	scriptBytes := []byte(scriptStr)
 	if len(scriptBytes) == 0 {
