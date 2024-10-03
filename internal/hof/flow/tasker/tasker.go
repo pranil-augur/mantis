@@ -208,6 +208,15 @@ func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Ex
 					varName := parseRunInjectAttr(attr.Text)
 					if val, ok := globalVars[varName]; ok {
 						x.Value = createASTNodeForValue(val)
+					} else {
+						fmt.Printf("Warning: Unable to find runtime alias: %v\n", varName)
+						// print global vars
+						fmt.Printf("Please see if it's mispelt.\n")
+						// Print all globalVars as key-value pairs
+						fmt.Println("Currently available runtime aliases: ")
+						for k, v := range globalVars {
+							fmt.Printf("%s: %v\n", k, v)
+						}
 					}
 				}
 			}
@@ -216,63 +225,6 @@ func injectVariables(value cue.Value, globalVars map[string]interface{}) (ast.Ex
 	})
 
 	return injectedNode.(ast.Expr), nil
-}
-
-func createInputMap(value cue.Value, globalVars map[string]interface{}) (map[string]interface{}, error) {
-	inputMap := make(map[string]interface{})
-	inputsValue := value.LookupPath(cue.ParsePath("inputs"))
-
-	if !inputsValue.Exists() {
-		return inputMap, nil
-	}
-
-	inputsList, err := inputsValue.List()
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse inputs: %v", err)
-	}
-
-	for inputsList.Next() {
-		input := inputsList.Value()
-		alias, err := input.LookupPath(cue.ParsePath("alias")).String()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get alias for input: %v", err)
-		}
-		sourceField := input.LookupPath(cue.ParsePath("source"))
-
-		// Extract value from sourceField based on its kind
-		var sourceValue interface{}
-		switch sourceField.Kind() {
-		case cue.StringKind:
-			sourceValue, err = sourceField.String()
-		case cue.IntKind:
-			sourceValue, err = sourceField.Int64()
-		case cue.FloatKind:
-			sourceValue, err = sourceField.Float64()
-		case cue.BoolKind:
-			sourceValue, err = sourceField.Bool()
-		case cue.ListKind:
-			sourceValue, err = sourceField.List()
-		case cue.StructKind:
-			sourceValue, err = sourceField.Struct()
-		default:
-			// For other types, try to get the Go value
-			sourceValue = sourceField.Value()
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to get value for input %s: %v", alias, err)
-		}
-
-		inputMap[alias] = sourceValue
-	}
-
-	return inputMap, nil
-}
-
-func parsePreInjectAttr(attrText string) string {
-	attrText = strings.TrimPrefix(attrText, "@preinject(")
-	attrText = strings.TrimSuffix(attrText, ")")
-	return strings.Trim(attrText, "\"")
 }
 
 func parseRunInjectAttr(attrText string) string {
@@ -353,7 +305,7 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 func processOutput(alias, jqPath string, outData interface{}) interface{} {
 	actualValue, ok := queryJQ(outData, jqPath)
 	if !ok {
-		fmt.Printf("Value not found for output: %s at path: %s\n", alias, jqPath)
+		fmt.Printf("Value not found at path: %s for alias: %s\n", jqPath, alias)
 		return nil
 	}
 
