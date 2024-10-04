@@ -12,6 +12,7 @@ package opentf
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/hashicorp/terraform-svchost/disco"
 	"github.com/mitchellh/cli"
 	"github.com/opentofu/opentofu/internal/addrs"
+	backendInit "github.com/opentofu/opentofu/internal/backend/init"
 	"github.com/opentofu/opentofu/internal/command"
 	"github.com/opentofu/opentofu/internal/command/cliconfig"
 	"github.com/opentofu/opentofu/internal/configs"
@@ -45,10 +47,17 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 
 	// Marshal the unified result to JSON
 	jsonScript, err := script.MarshalJSON()
+
 	// Print the JSON representation of the script
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling script to json: %v", err)
 	}
+
+	jsonScript, err = t.appendBackendConfig(jsonScript, ctx.BaseTask.ID)
+	if err != nil {
+		return nil, fmt.Errorf("error appending backend config: %v", err)
+	}
+
 	scriptStr := string(jsonScript)
 
 	// Serialize JSON string to bytes
@@ -77,6 +86,9 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize terminal: %v", err)
 	}
+
+	// Initialize the backends.
+	backendInit.Init(services)
 
 	var std_ctx context.Context
 
@@ -203,6 +215,40 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/destroy")
 	}
 	return nil, nil
+}
+
+func (t *TFTask) appendBackendConfig(jsonScript []byte, taskID string) ([]byte, error) {
+	var config map[string]interface{}
+	if err := json.Unmarshal(jsonScript, &config); err != nil {
+		return nil, fmt.Errorf("error unmarshalling JSON: %v", err)
+	}
+
+	newBackendConfig := map[string]interface{}{
+		"backend": map[string]interface{}{
+			"local": []interface{}{
+				map[string]interface{}{
+					"path": fmt.Sprintf("./terraform_state/terraform_%s.tfstate", taskID),
+				},
+			},
+		},
+	}
+
+	// Check if terraform key exists and is a slice
+	if terraformConfig, ok := config["terraform"].([]interface{}); ok {
+		// Append new backend config to existing terraform slice
+		config["terraform"] = append(terraformConfig, newBackendConfig)
+	} else {
+		// If terraform key doesn't exist or is not a slice, create a new slice
+		config["terraform"] = []interface{}{newBackendConfig}
+	}
+
+	// Marshal the updated config back to JSON
+	updatedJSON, err := json.Marshal(config)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling updated config to JSON: %v", err)
+	}
+
+	return updatedJSON, nil
 }
 
 func convertCtyToGo(input *sync.Map) (map[string]interface{}, error) {
