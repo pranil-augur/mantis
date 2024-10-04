@@ -529,6 +529,7 @@ func (m *Meta) backendConfig(opts *BackendOpts) (*configs.Backend, int, tfdiags.
 // This function may query the user for input unless input is disabled, in
 // which case this function will error.
 func (m *Meta) backendFromConfig(opts *BackendOpts, enc encryption.StateEncryption) (backend.Backend, tfdiags.Diagnostics) {
+
 	// Get the local backend configuration.
 	c, cHash, diags := m.backendConfig(opts)
 	if diags.HasErrors() {
@@ -555,7 +556,7 @@ func (m *Meta) backendFromConfig(opts *BackendOpts, enc encryption.StateEncrypti
 	// Get the path to where we store a local cache of backend configuration
 	// if we're using a remote backend. This may not yet exist which means
 	// we haven't used a non-local backend before. That is okay.
-	statePath := filepath.Join(m.DataDir(), DefaultStateFilename)
+	statePath := filepath.Join(m.DataDir(), m.ConfigDetails.BackendStatePath)
 	sMgr := &clistate.LocalState{Path: statePath}
 	if err := sMgr.RefreshState(); err != nil {
 		diags = diags.Append(fmt.Errorf("Failed to load state: %w", err))
@@ -616,7 +617,7 @@ func (m *Meta) backendFromConfig(opts *BackendOpts, enc encryption.StateEncrypti
 		if !opts.Init {
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
-				"Backend initialization required, please run \"tofu init\"",
+				"Backend initialization required, please run \"mantis run --init <workflow_file>\"",
 				fmt.Sprintf(strings.TrimSpace(errBackendInit), initReason),
 			))
 			return nil, diags
@@ -754,19 +755,19 @@ func (m *Meta) determineInitReason(previousBackendType string, currentBackendTyp
 	case cloud.ConfigChangeInPlace:
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Cloud backend initialization required: please run \"tofu init\"",
+			"Cloud backend initialization required: please run \"mantis run --init <workflow_file>\"",
 			fmt.Sprintf(strings.TrimSpace(errBackendInitCloud), initReason),
 		))
 	case cloud.ConfigMigrationIn:
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Cloud backend initialization required: please run \"tofu init\"",
+			"Cloud backend initialization required: please run \"mantis run --init <workflow_file>\"",
 			fmt.Sprintf(strings.TrimSpace(errBackendInitCloud), initReason),
 		))
 	default:
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
-			"Backend initialization required: please run \"tofu init\"",
+			"Backend initialization required: please run \"mantis run --init <workflow_file>\"",
 			fmt.Sprintf(strings.TrimSpace(errBackendInit), initReason),
 		))
 	}
@@ -783,6 +784,7 @@ func (m *Meta) backendFromState(ctx context.Context, enc encryption.StateEncrypt
 	// Get the path to where we store a local cache of backend configuration
 	// if we're using a remote backend. This may not yet exist which means
 	// we haven't used a non-local backend before. That is okay.
+
 	statePath := filepath.Join(m.DataDir(), DefaultStateFilename)
 	sMgr := &clistate.LocalState{Path: statePath}
 	if err := sMgr.RefreshState(); err != nil {
