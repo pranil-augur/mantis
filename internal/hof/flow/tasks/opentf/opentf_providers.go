@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/terraform-svchost/disco"
 	"github.com/opentofu/opentofu/internal/addrs"
+	backendInit "github.com/opentofu/opentofu/internal/backend/init"
 	"github.com/opentofu/opentofu/internal/command"
 	"github.com/opentofu/opentofu/internal/command/cliconfig"
 	"github.com/opentofu/opentofu/internal/configs"
@@ -68,6 +69,8 @@ func (t *TFProvidersTask) Run(ctx *hofcontext.Context) (any, error) {
 		return nil, fmt.Errorf("failed to initialize terminal: %v", err)
 	}
 
+	// Initialize the backends.
+	backendInit.Init(services)
 	var std_ctx context.Context
 
 	taskPath := ctx.BaseTask.ID
@@ -104,7 +107,7 @@ func (t *TFProvidersTask) Run(ctx *hofcontext.Context) (any, error) {
 			return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
 		}
 
-		retval := initCommand.Run([]string{})
+		retval := initCommand.Run([]string{"-reconfigure"})
 		if retval < 0 {
 			return nil, fmt.Errorf("error Initializing")
 		}

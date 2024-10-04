@@ -7,7 +7,8 @@ package configs
 
 // MicroConfig holds configuration data with its identifier, content in bytes, and format.
 type MicroConfig struct {
-	Identifier string
-	Content    []byte
-	Format     string // Expected values: "cue", "json", "hcl"
+	Identifier       string
+	Content          []byte
+	Format           string // Expected values: "cue", "json", "hcl"
+	BackendStatePath string
 }

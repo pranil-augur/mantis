@@ -12,7 +12,6 @@ package opentf
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -24,6 +23,7 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	backendInit "github.com/opentofu/opentofu/internal/backend/init"
 	"github.com/opentofu/opentofu/internal/command"
+	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/command/cliconfig"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/getproviders"
@@ -53,7 +53,6 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		return nil, fmt.Errorf("error marshalling script to json: %v", err)
 	}
 
-	jsonScript, err = t.appendBackendConfig(jsonScript, ctx.BaseTask.ID)
 	if err != nil {
 		return nil, fmt.Errorf("error appending backend config: %v", err)
 	}
@@ -91,12 +90,15 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	backendInit.Init(services)
 
 	var std_ctx context.Context
+	backendStatePath :=
+		fmt.Sprintf("./terraform/back_%s.tfstate", ctx.BaseTask.ID)
 
 	taskPath := ctx.BaseTask.ID
 	configDetails := &configs.MicroConfig{
-		Identifier: taskPath,
-		Content:    scriptBytes,
-		Format:     "json",
+		Identifier:       taskPath,
+		Content:          scriptBytes,
+		Format:           "json",
+		BackendStatePath: backendStatePath,
 	}
 	// Initialize commands
 	commandsFactory := utils.InitCommandsWrapper(std_ctx, "", streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders, configDetails)
@@ -118,13 +120,28 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		if !ok {
 			return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
 		}
+
+		// Create and populate the Apply arguments
+		planArgs := &arguments.Plan{
+			State: &arguments.State{
+				StatePath: createStatePath(ctx.BaseTask.ID),
+			},
+		}
+
+		rawArgs := []string{}
+
+		// Add state path if specified
+		if planArgs.State.StatePath != "" {
+			rawArgs = append(rawArgs, "-state="+planArgs.State.StatePath)
+		}
+
 		// Execute the PlanCommand with the configuration file path
 		// planCommand.Meta.ConfigByteArray = scriptBytes
 		parsedVariables := sync.Map{}
 		// Create a new TFContext with the parsedVariables
 		tfContext := hofcontext.NewTFContext(&parsedVariables)
 
-		_, err = planCommand.RunAPI([]string{}, tfContext)
+		_, err = planCommand.RunAPI(rawArgs, tfContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute apply command with exit status %d", err)
 		}
@@ -162,6 +179,13 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		if !ok {
 			return nil, fmt.Errorf("error asserting command type to *command.ApplyCommand")
 		}
+
+		// Create and populate the Apply arguments
+		applyArgs := &arguments.Apply{
+			State: &arguments.State{
+				StatePath: createStatePath(ctx.BaseTask.ID),
+			},
+		}
 		// Execute the PlanCommand with the configuration file path
 		// planCommand.Meta.ConfigByteArray = scriptBytes
 		// var parsedVariables *map[string]map[string]cty.Value = &map[string]map[string]cty.Value{}
@@ -169,7 +193,15 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		// Create a new TFContext with the parsedVariables
 		tfContext := hofcontext.NewTFContext(&parsedVariables)
 
-		_, err = applyCommand.RunAPI([]string{"-auto-approve"}, tfContext)
+		// Add apply args to rawArgs
+		rawArgs := []string{"-auto-approve"}
+
+		// Add state path if specified
+		if applyArgs.State.StatePath != "" {
+			rawArgs = append(rawArgs, "-state="+applyArgs.State.StatePath)
+		}
+
+		_, err = applyCommand.RunAPI(rawArgs, tfContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute apply command with exit status %d", err)
 		}
@@ -207,7 +239,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 			return nil, fmt.Errorf("error asserting command type to *command.PlanCommand")
 		}
 
-		retval := initCommand.Run([]string{})
+		retval := initCommand.Run([]string{"-reconfigure"})
 		if retval < 0 {
 			return nil, fmt.Errorf("error Initializing")
 		}
@@ -217,38 +249,8 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 	return nil, nil
 }
 
-func (t *TFTask) appendBackendConfig(jsonScript []byte, taskID string) ([]byte, error) {
-	var config map[string]interface{}
-	if err := json.Unmarshal(jsonScript, &config); err != nil {
-		return nil, fmt.Errorf("error unmarshalling JSON: %v", err)
-	}
-
-	newBackendConfig := map[string]interface{}{
-		"backend": map[string]interface{}{
-			"local": []interface{}{
-				map[string]interface{}{
-					"path": fmt.Sprintf("./terraform_state/terraform_%s.tfstate", taskID),
-				},
-			},
-		},
-	}
-
-	// Check if terraform key exists and is a slice
-	if terraformConfig, ok := config["terraform"].([]interface{}); ok {
-		// Append new backend config to existing terraform slice
-		config["terraform"] = append(terraformConfig, newBackendConfig)
-	} else {
-		// If terraform key doesn't exist or is not a slice, create a new slice
-		config["terraform"] = []interface{}{newBackendConfig}
-	}
-
-	// Marshal the updated config back to JSON
-	updatedJSON, err := json.Marshal(config)
-	if err != nil {
-		return nil, fmt.Errorf("error marshalling updated config to JSON: %v", err)
-	}
-
-	return updatedJSON, nil
+func createStatePath(taskID string) string {
+	return fmt.Sprintf("./terraform_state/terraform_%s.tfstate", taskID)
 }
 
 func convertCtyToGo(input *sync.Map) (map[string]interface{}, error) {

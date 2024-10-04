@@ -29,6 +29,21 @@ package test
 	}
 }
 
+// S3 bucket configuration
+#s3BucketConfig1: {
+	resource: {
+		"aws_s3_bucket": {
+			"otfork-sample-bucket-1": {
+				bucket: "otfork-sample-bucket-1"
+				tags: {
+					Name:        _  | *null @runinject(available_zones)
+					Environment: "dev"
+				}
+			}
+		}
+	}
+}
+
 #aws_availability_zones: {
 	"data": {
 		"aws_availability_zones": {
@@ -62,6 +77,12 @@ tasks: {
 		@task(opentf.TF)
 		dep: [setup_providers, get_azs_data]
 		config: #s3BucketConfig
+	}
+	
+	setup_s3_1: {
+		@task(opentf.TF)
+		dep: [setup_s3]
+		config: #s3BucketConfig1
 	}
 
 	done: {

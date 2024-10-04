@@ -71,7 +71,7 @@ func (l *Loader) moduleWalkerLoad(req *configs.ModuleRequest) (*configs.Module, 
 			{
 				Severity: hcl.DiagError,
 				Summary:  "Module not installed",
-				Detail:   "This module is not yet installed. Run \"tofu init\" to install all modules required by this configuration.",
+				Detail:   "This module is not yet installed. Run \"mantis run --init <workflow_file>\" to install all modules required by this configuration.",
 				Subject:  &req.CallRange,
 			},
 		}
