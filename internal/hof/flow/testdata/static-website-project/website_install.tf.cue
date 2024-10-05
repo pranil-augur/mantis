@@ -22,25 +22,25 @@ install_static_website: {
 		config: defs.vpc
 		exports: [{
 			path:  ".module.vpc.aws_vpc.this[0].id"
-			alias: "vpc_id"
+			var: "vpc_id"
 		}, {
 			path:  ".module.vpc.aws_subnet.public[].id"
-			alias: "public_subnet_ids"
+			var: "public_subnet_ids"
 		}, {
 			path:  ".module.vpc.aws_subnet.public[0].id"
-			alias: "public_subnet_id"
+			var: "public_subnet_id"
 		}, {
 			path:  ".module.vpc.aws_subnet.private[].id"
-			alias: "private_subnet_ids"
+			var: "private_subnet_ids"
 		}, {
 			path:  ".module.vpc.aws_vpc.this[0].cidr_block"
-			alias: "vpc_cidr_block"
+			var: "vpc_cidr_block"
 		}, {
 			path:  ".module.vpc.aws_eip.nat[].public_ip"
-			alias: "nat_public_ips"
+			var: "nat_public_ips"
 		}, {
 			path:  ".module.vpc.aws_default_security_group.this[].id"
-			alias: "default_security_group_id"
+			var: "default_security_group_id"
 		}]
 	}
 
@@ -50,7 +50,7 @@ install_static_website: {
 		config: defs.subnet_group
 		exports: [{
 			path:  ".aws_db_subnet_group.this[0].id"
-			alias: "subnet_group_ids"
+			var: "subnet_group_ids"
 		}]
 	}
 
@@ -60,7 +60,7 @@ install_static_website: {
 		config: defs.rds
 		exports: [{
 			path:  ".aws_db_instance.this[0].endpoint"
-			alias: "rds_endpoint"
+			var: "rds_endpoint"
 		}]
 	}
 

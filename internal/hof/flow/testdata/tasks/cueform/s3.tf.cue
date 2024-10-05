@@ -68,7 +68,7 @@ tasks: {
 		dep:    setup_providers
 		config: #aws_availability_zones
 		exports: [{
-			alias: "available_zones"
+			var: "available_zones"
 			path:  ".data.aws_availability_zones.available.id"
 		}]
 	}
@@ -83,10 +83,5 @@ tasks: {
 		@task(opentf.TF)
 		dep: [setup_s3]
 		config: #s3BucketConfig1
-	}
-
-	done: {
-		@task(os.Stdout)
-		text: "S3 bucket setup completed.\n"
 	}
 }

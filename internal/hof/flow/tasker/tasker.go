@@ -216,7 +216,7 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 		switch x := n.(type) {
 		case *ast.Field:
 			for _, attr := range x.Attrs {
-				if strings.HasPrefix(attr.Text, "@runinject") {
+				if strings.HasPrefix(attr.Text, "@var") {
 					varName := parseRunInjectAttr(attr.Text)
 					if val, ok := globalVars[varName]; ok {
 						x.Value = createASTNodeForValue(val)
@@ -234,7 +234,7 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 }
 
 func parseRunInjectAttr(attrText string) string {
-	attrText = strings.TrimPrefix(attrText, "@runinject(")
+	attrText = strings.TrimPrefix(attrText, "@var(")
 	attrText = strings.TrimSuffix(attrText, ")")
 	return strings.Trim(attrText, "\"")
 }
@@ -242,8 +242,8 @@ func parseRunInjectAttr(attrText string) string {
 func buildWarningMessage(varName string, taskId string, globalVars map[string]interface{}) string {
 	var warningMsg strings.Builder
 
-	warningMsg.WriteString(fmt.Sprintf("Alias '%v' not found in task '%v'\n", varName, taskId))
-	warningMsg.WriteString("Available aliases:\n")
+	warningMsg.WriteString(fmt.Sprintf("var '%v' not found in task '%v'\n", varName, taskId))
+	warningMsg.WriteString("Available vars:\n")
 
 	// Sort the keys for consistent output
 	keys := make([]string, 0, len(globalVars))
@@ -315,10 +315,10 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 			iter, _ := exportsValue.List()
 			for iter.Next() {
 				outputDef := iter.Value()
-				alias, _ := outputDef.LookupPath(cue.ParsePath(hof.MantisTaskAlias)).String()
+				varName, _ := outputDef.LookupPath(cue.ParsePath(hof.MantisVar)).String()
 				jqPath, _ := outputDef.LookupPath(cue.ParsePath(hof.MantisTaskPath)).String()
-				actualValue := processOutput(ctx, alias, jqPath, outData)
-				ctx.GlobalVars[alias] = actualValue
+				actualValue := processOutput(ctx, varName, jqPath, outData)
+				ctx.GlobalVars[varName] = actualValue
 			}
 		default:
 			fmt.Printf("Unexpected exports kind: %v\n", exportsValue.Kind())
@@ -328,10 +328,10 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 	}
 }
 
-func processOutput(ctx *flowctx.Context, alias, jqPath string, outData interface{}) interface{} {
+func processOutput(ctx *flowctx.Context, varName, jqPath string, outData interface{}) interface{} {
 	actualValue, ok := queryJQ(outData, jqPath)
 	if !ok {
-		ctx.AddWarning(fmt.Sprintf("Value not found at path: %s for alias: %s\n", jqPath, alias))
+		ctx.AddWarning(fmt.Sprintf("Value not found at path: %s for var: %s\n", jqPath, varName))
 		return nil
 	}
 

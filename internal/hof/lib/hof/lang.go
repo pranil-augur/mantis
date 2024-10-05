@@ -19,7 +19,7 @@ const (
 	MantisTaskExports = "exports"
 
 	// ExportsExtension is the file extension for Exports language files
-	MantisTaskAlias = "alias"
+	MantisVar = "var"
 
 	// MantisTaskPath is the default path for task outputs
 	MantisTaskPath = "path"

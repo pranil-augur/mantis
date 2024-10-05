@@ -10,7 +10,7 @@ ec2: module: ec2_instance: schemas.#ModuleEC2 & {
 	name:          "\(common.project_name)-instance"
 	ami:           "ami-0c55b159cbfafe1f0" // Amazon Linux 2 AMI (HVM), SSD Volume Type
 	instance_type: "t2.micro"
-	subnet_id:     string | *null @runinject(public_subnet_id)
+	subnet_id:     string | *null @var(public_subnet_id)
 	user_data: """
 		#!/bin/bash
 		amazon-linux-extras install docker
@@ -18,7 +18,7 @@ ec2: module: ec2_instance: schemas.#ModuleEC2 & {
 		usermod -a -G docker ec2-user
 		
 		# Save RDS endpoint to a file
-		echo "@runinject(rds_endpoint)" > /home/ec2-user/rds_endpoint.txt
+		echo "@var(rds_endpoint)" > /home/ec2-user/rds_endpoint.txt
 		
 		# Run a container with the RDS endpoint as an environment variable
 		docker run -d -p 80:80 -e RDS_ENDPOINT=$(cat /home/ec2-user/rds_endpoint.txt) nginx:latest
