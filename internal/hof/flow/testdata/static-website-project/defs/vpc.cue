@@ -29,7 +29,7 @@ subnet_group: {
 	resource: {
 		aws_db_subnet_group: education: {
 			name: "education"
-			subnet_ids: [...string] | *null @runinject(public_subnet_ids)
+			subnet_ids: [...string] | *null @var(public_subnet_ids)
 			tags: {
 				Name: "Education"
 			}
