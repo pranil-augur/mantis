@@ -91,7 +91,7 @@ func (c *PlanCommand) RunAPI(rawArgs []string, tfContext *hofcontext.TFContext) 
 
 	// Build the operation request
 	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation,
-		args.OutPath, args.GenerateConfigPath, enc, c.ConfigDetails, tfContext)
+		args.OutPath, args.GenerateConfigPath, enc, c.MantisConfig, tfContext)
 	diags = diags.Append(opDiags)
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
@@ -192,7 +192,7 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 
 	// Build the operation request
 	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation, args.OutPath,
-		args.GenerateConfigPath, enc, &configs.MicroConfig{}, hofcontext.NewTFContext(nil))
+		args.GenerateConfigPath, enc, &configs.MantisConfig{}, hofcontext.NewTFContext(nil))
 	diags = diags.Append(opDiags)
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
@@ -263,7 +263,7 @@ func (c *PlanCommand) OperationRequest(
 	planOutPath string,
 	generateConfigOut string,
 	enc encryption.Encryption,
-	configDetails *configs.MicroConfig,
+	configDetails *configs.MantisConfig,
 	tfContext *hofcontext.TFContext,
 ) (*backend.Operation, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics

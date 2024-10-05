@@ -74,7 +74,7 @@ func (t *TFProvidersTask) Run(ctx *hofcontext.Context) (any, error) {
 	var std_ctx context.Context
 
 	taskPath := ctx.BaseTask.ID
-	configDetails := &configs.MicroConfig{
+	configDetails := &configs.MantisConfig{
 		Identifier: taskPath,
 		Content:    scriptBytes,
 		Format:     "json",

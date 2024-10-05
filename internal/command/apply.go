@@ -119,7 +119,7 @@ func (c *ApplyCommand) RunAPI(rawArgs []string, tfContext *hofcontext.TFContext)
 
 	// Build the operation request
 	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, planFile,
-		args.Operation, args.AutoApprove, enc, c.Meta.ConfigDetails, tfContext)
+		args.Operation, args.AutoApprove, enc, c.Meta.MantisConfig, tfContext)
 	diags = diags.Append(opDiags)
 
 	// Collect variable value and add them to the operation request
@@ -254,7 +254,7 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 	tfContext := hofcontext.NewTFContext(nil)
 	// Build the operation request
 	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, planFile, args.Operation,
-		args.AutoApprove, enc, c.Meta.ConfigDetails, tfContext)
+		args.AutoApprove, enc, c.Meta.MantisConfig, tfContext)
 	diags = diags.Append(opDiags)
 
 	// Collect variable value and add them to the operation request
@@ -404,7 +404,7 @@ func (c *ApplyCommand) OperationRequest(
 	args *arguments.Operation,
 	autoApprove bool,
 	enc encryption.Encryption,
-	configDetails *configs.MicroConfig,
+	configDetails *configs.MantisConfig,
 	tfContext *hofcontext.TFContext,
 ) (*backend.Operation, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
