@@ -183,12 +183,18 @@ func createAndPrintMantisPlan(ctx *flowctx.Context) (map[string]interface{}, err
 		}
 	}
 
-	// fmt.Println("tfResources:", tfResources)
 	if len(tfResources) > 0 {
-		fmt.Println("Resource Summary:")
+		fmt.Println("Quick Resource Summary:")
 		fmt.Println("---------------------------")
 		for resourceType, resources := range tfResources {
-			fmt.Printf("%s\n", resourceType)
+			count := 0
+			switch r := resources.(type) {
+			case map[string]interface{}:
+				count = len(r)
+			case []interface{}:
+				count = len(r)
+			}
+			fmt.Printf("%s (%d)\n", resourceType, count)
 			switch r := resources.(type) {
 			case map[string]interface{}:
 				printResourceTree(r, 1)
