@@ -9,6 +9,7 @@
 package mantis
 
 import (
+	"fmt"
 	"log"
 
 	"cuelang.org/go/cue"
@@ -64,8 +65,9 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 			evalContext := v.Context()
 			transformedValue := evalContext.CompileString(exprStr, cue.Scope(ctx.RootValue))
 			if transformedValue.Err() != nil {
-				log.Fatalf("Failed to compile CUE expression: %v", transformedValue.Err())
+				fmt.Printf("Failed to compile CUE expression: %v\n", transformedValue.Err())
 			}
+			fmt.Printf("Transformed value: %v\n", transformedValue)
 			// Set the transformed value in the global vars
 			ctx.GlobalVars[varStr] = transformedValue
 		}

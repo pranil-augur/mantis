@@ -1,5 +1,6 @@
 package test
 
+
 #providers: {
 	provider: {
 		"aws": {}
@@ -21,7 +22,7 @@ package test
 			"otfork-sample-bucket": {
 				bucket: "otfork-sample-bucket"
 				tags: {
-					Name:        _  | *null @runinject(available_zones)
+					Name:        _  | *null @var(available_zones)
 					Environment: "dev"
 				}
 			}
@@ -36,7 +37,7 @@ package test
 			"otfork-sample-bucket-1": {
 				bucket: "otfork-sample-bucket-1"
 				tags: {
-					Name:        _  | *null @runinject(available_zones)
+					Name:        _  | *null @var(available_zones)
 					Environment: "dev"
 				}
 			}
@@ -73,6 +74,14 @@ tasks: {
 		}]
 	}
 
+	local_eval: {
+		@task(mantis.Evaluate)
+		exports: [{	
+			cueexpr: "strings.Split(get_azs_data.exports[0].alias, \"-\")[0]"
+			var: "first_az"
+		}]
+	}
+
 	setup_s3: {
 		@task(opentf.TF)
 		dep: [setup_providers, get_azs_data]
@@ -83,10 +92,5 @@ tasks: {
 		@task(opentf.TF)
 		dep: [setup_s3]
 		config: #s3BucketConfig1
-	}
-
-	done: {
-		@task(os.Stdout)
-		text: "S3 bucket setup completed.\n"
 	}
 }
