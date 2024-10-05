@@ -41,7 +41,6 @@ func RegisterDefaults(context *hofcontext.Context) {
 
 	context.Register("db.Call", db.NewCall)
 	context.Register("opentf.TF", opentf.NewTFTask)
-	context.Register("opentf.TFProviders", opentf.NewTFProvidersTask)
 	context.Register("k8s.Helm", helm.NewHelmTask)
 
 	context.Register("hof.Template", hof.NewHofTemplate)

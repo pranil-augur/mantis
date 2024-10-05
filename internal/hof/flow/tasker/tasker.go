@@ -117,11 +117,13 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 
 		// Inject variables before running the task
 		// (only if we are applying)
-		injectedNode, err := injectVariables(c, bt.ID, node.Value, c.GlobalVars)
-		if err != nil {
-			return fmt.Errorf("error injecting variables: %v", err)
+		if c.Apply || c.Plan {
+			injectedNode, err := injectVariables(c, bt.ID, node.Value, c.GlobalVars)
+			if err != nil {
+				return fmt.Errorf("error injecting variables: %v", err)
+			}
+			c.Value = c.CueContext.BuildExpr(injectedNode)
 		}
-		c.Value = c.CueContext.BuildExpr(injectedNode)
 
 		// fmt.Println("Injected value: %v", c.Value)
 
@@ -219,7 +221,7 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 						x.Value = createASTNodeForValue(val)
 					} else {
 						warningMessage := buildWarningMessage(varName, taskId, globalVars)
-						ctx.AddError(warningMessage)
+						ctx.AddWarning(warningMessage)
 					}
 				}
 			}
@@ -312,8 +314,8 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 			iter, _ := exportsValue.List()
 			for iter.Next() {
 				outputDef := iter.Value()
-				alias, _ := outputDef.LookupPath(cue.ParsePath("alias")).String()
-				jqPath, _ := outputDef.LookupPath(cue.ParsePath("path")).String()
+				alias, _ := outputDef.LookupPath(cue.ParsePath(hof.MantisTaskAlias)).String()
+				jqPath, _ := outputDef.LookupPath(cue.ParsePath(hof.MantisTaskPath)).String()
 				actualValue := processOutput(ctx, alias, jqPath, outData)
 				ctx.GlobalVars[alias] = actualValue
 			}

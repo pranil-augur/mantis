@@ -59,7 +59,7 @@ package test
 tasks: {
 	@flow(s3_setup)
 	setup_providers: {
-		@task(opentf.TFProviders)
+		@task(opentf.TF)
 		config: #providers
 	}
 

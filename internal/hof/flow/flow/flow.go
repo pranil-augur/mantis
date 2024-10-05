@@ -149,7 +149,6 @@ func (P *Flow) run() error {
 		for _, warning := range P.FlowCtx.FlowWarnings {
 			cuetils.PrintWarningOrError(true, warning)
 		}
-		cuetils.PrintWarningOrError(true, "Refer terraform module documentation for more details on the above errors and warnings")
 	}
 
 	// fmt.Println("Flow.run() end", err)

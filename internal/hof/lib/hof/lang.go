@@ -21,6 +21,9 @@ const (
 	// ExportsExtension is the file extension for Exports language files
 	MantisTaskAlias = "alias"
 
+	// MantisTaskPath is the default path for task outputs
+	MantisTaskPath = "path"
+
 	// MantisBackendConfigPath is the default path for backend configuration
 	MantisBackendConfigPath = "mantis_state/"
 
