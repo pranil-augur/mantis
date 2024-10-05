@@ -103,7 +103,7 @@ func (p *Parser) LoadHCLFile(path string) (hcl.Body, hcl.Diagnostics) {
 //
 // The content will be parsed using the specified format type: HCL native syntax, HCL JSON syntax,
 // or CUE syntax.
-func (p *Parser) LoadHCLString(configDetails *MicroConfig) (hcl.Body, hcl.Diagnostics) {
+func (p *Parser) LoadHCLString(configDetails *MantisConfig) (hcl.Body, hcl.Diagnostics) {
 	var file *hcl.File
 	var diags hcl.Diagnostics
 

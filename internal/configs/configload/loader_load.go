@@ -28,7 +28,7 @@ func (l *Loader) LoadConfig(rootDir string) (*configs.Config, hcl.Diagnostics) {
 	return l.loadConfig(l.parser.LoadConfigDir(rootDir))
 }
 
-func (l *Loader) LoadConfigFromString(configDetails *configs.MicroConfig, dir string) (*configs.Config, hcl.Diagnostics) {
+func (l *Loader) LoadConfigFromString(configDetails *configs.MantisConfig, dir string) (*configs.Config, hcl.Diagnostics) {
 	return l.loadConfig(l.parser.LoadConfigFromStr(configDetails, dir))
 }
 

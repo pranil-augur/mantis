@@ -45,7 +45,7 @@ func (l *Loader) LoadConfigWithSnapshot(rootDir string) (*configs.Config, *Snaps
 // LoadConfigWithSnapshotStr is a variant of LoadConfigWithSnapshot that also simultaneously
 // that uses the configuration that's passed as an argument insteafd of the config files from filesystem
 // mainly to support the API
-func (l *Loader) LoadConfigWithSnapshotStr(configDetails *configs.MicroConfig, rootDir string) (*configs.Config, *Snapshot, hcl.Diagnostics) {
+func (l *Loader) LoadConfigWithSnapshotStr(configDetails *configs.MantisConfig, rootDir string) (*configs.Config, *Snapshot, hcl.Diagnostics) {
 	rootMod, diags := l.parser.LoadConfigFromStr(configDetails, rootDir)
 	if rootMod == nil {
 		return nil, nil, diags

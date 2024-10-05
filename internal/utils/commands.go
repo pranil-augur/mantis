@@ -65,7 +65,7 @@ func InitCommandsWrapper(
 	providerSrc getproviders.Source,
 	providerDevOverrides map[addrs.Provider]getproviders.PackageLocalDir,
 	unmanagedProviders map[addrs.Provider]*plugin.ReattachConfig,
-	configDetails *configs.MicroConfig,
+	configDetails *configs.MantisConfig,
 ) map[string]cli.CommandFactory {
 	// Call the existing InitCommands function
 	InitCommands(ctx, originalWorkingDir, streams, config, services, providerSrc, providerDevOverrides, unmanagedProviders, configDetails)
@@ -83,7 +83,7 @@ func InitCommands(
 	providerSrc getproviders.Source,
 	providerDevOverrides map[addrs.Provider]getproviders.PackageLocalDir,
 	unmanagedProviders map[addrs.Provider]*plugin.ReattachConfig,
-	configDetails *configs.MicroConfig,
+	configDetails *configs.MantisConfig,
 ) {
 	var inAutomation bool
 	if v := os.Getenv(runningInAutomationEnvName); v != "" {
@@ -133,7 +133,7 @@ func InitCommands(
 		UnmanagedProviders:   unmanagedProviders,
 
 		AllowExperimentalFeatures: experimentsAreAllowed(),
-		ConfigDetails:             configDetails,
+		MantisConfig:              configDetails,
 	}
 
 	// The command list is included in the tofu -help

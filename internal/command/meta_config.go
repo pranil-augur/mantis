@@ -69,8 +69,8 @@ func (m *Meta) loadConfigWithTests(rootDir, testDir string) (*configs.Config, tf
 
 	var config *configs.Config
 	var hclDiags hcl.Diagnostics
-	if m.ConfigDetails != nil {
-		config, hclDiags = loader.LoadConfigFromString(m.ConfigDetails, rootDir)
+	if m.MantisConfig != nil {
+		config, hclDiags = loader.LoadConfigFromString(m.MantisConfig, rootDir)
 	} else {
 		config, hclDiags = loader.LoadConfigWithTests(rootDir, testDir)
 	}
@@ -98,8 +98,8 @@ func (m *Meta) loadSingleModule(dir string) (*configs.Module, tfdiags.Diagnostic
 
 	var module *configs.Module
 	var hclDiags hcl.Diagnostics
-	if m.ConfigDetails != nil {
-		module, hclDiags = loader.Parser().LoadConfigFromStr(m.ConfigDetails, dir)
+	if m.MantisConfig != nil {
+		module, hclDiags = loader.Parser().LoadConfigFromStr(m.MantisConfig, dir)
 	} else {
 		module, hclDiags = loader.Parser().LoadConfigDir(dir)
 	}
@@ -122,8 +122,8 @@ func (m *Meta) loadSingleModuleWithTests(dir string, testDir string) (*configs.M
 
 	var module *configs.Module
 	var hclDiags hcl.Diagnostics
-	if m.ConfigDetails != nil {
-		module, hclDiags = loader.Parser().LoadConfigFromStr(m.ConfigDetails, dir)
+	if m.MantisConfig != nil {
+		module, hclDiags = loader.Parser().LoadConfigFromStr(m.MantisConfig, dir)
 	} else {
 		module, hclDiags = loader.Parser().LoadConfigDirWithTests(dir, testDir)
 	}
@@ -226,8 +226,8 @@ func (m *Meta) installModules(ctx context.Context, rootDir, testsDir string, upg
 	inst := initwd.NewModuleInstaller(m.modulesDir(), loader, m.registryClient())
 
 	var moreDiags tfdiags.Diagnostics
-	if m.ConfigDetails != nil {
-		_, moreDiags = inst.InstallModulesStr(ctx, m.ConfigDetails, rootDir, upgrade, installErrsOnly, hooks)
+	if m.MantisConfig != nil {
+		_, moreDiags = inst.InstallModulesStr(ctx, m.MantisConfig, rootDir, upgrade, installErrsOnly, hooks)
 
 	} else {
 		_, moreDiags = inst.InstallModules(ctx, rootDir, testsDir, upgrade, installErrsOnly, hooks)

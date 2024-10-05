@@ -95,7 +95,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		fmt.Sprintf("./terraform/back_%s.tfstate", ctx.BaseTask.ID)
 
 	taskPath := ctx.BaseTask.ID
-	configDetails := &configs.MicroConfig{
+	configDetails := &configs.MantisConfig{
 		Identifier:       taskPath,
 		Content:          scriptBytes,
 		Format:           "json",

@@ -556,7 +556,7 @@ func (m *Meta) backendFromConfig(opts *BackendOpts, enc encryption.StateEncrypti
 	// Get the path to where we store a local cache of backend configuration
 	// if we're using a remote backend. This may not yet exist which means
 	// we haven't used a non-local backend before. That is okay.
-	statePath := filepath.Join(m.DataDir(), m.ConfigDetails.BackendStatePath)
+	statePath := filepath.Join(m.DataDir(), m.MantisConfig.BackendStatePath)
 	sMgr := &clistate.LocalState{Path: statePath}
 	if err := sMgr.RefreshState(); err != nil {
 		diags = diags.Append(fmt.Errorf("Failed to load state: %w", err))
