@@ -12,6 +12,7 @@ package tasker
 
 import (
 	"fmt"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -330,7 +331,7 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 func processOutput(ctx *flowctx.Context, alias, jqPath string, outData interface{}) interface{} {
 	actualValue, ok := queryJQ(outData, jqPath)
 	if !ok {
-		ctx.AddError(fmt.Sprintf("Value not found at path: %s for alias: %s\n", jqPath, alias))
+		ctx.AddWarning(fmt.Sprintf("Value not found at path: %s for alias: %s\n", jqPath, alias))
 		return nil
 	}
 
@@ -364,7 +365,7 @@ func queryJQ(data interface{}, jqPath string) (interface{}, bool) {
 			break
 		}
 		if err, isErr := result.(error); isErr {
-			fmt.Printf("Error during JQ query execution: %v\n", err)
+			log.Printf("[DEBUG] Error during JQ query execution: %v\n", err)
 			continue
 		}
 		results = append(results, result)
