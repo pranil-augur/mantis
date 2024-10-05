@@ -1,5 +1,6 @@
 package test
 
+
 #providers: {
 	provider: {
 		"aws": {}
@@ -21,7 +22,7 @@ package test
 			"otfork-sample-bucket": {
 				bucket: "otfork-sample-bucket"
 				tags: {
-					Name:        _  | *null @runinject(available_zones)
+					Name:        _  | *null @var(available_zones)
 					Environment: "dev"
 				}
 			}
@@ -36,7 +37,7 @@ package test
 			"otfork-sample-bucket-1": {
 				bucket: "otfork-sample-bucket-1"
 				tags: {
-					Name:        _  | *null @runinject(available_zones)
+					Name:        _  | *null @var(available_zones)
 					Environment: "dev"
 				}
 			}
@@ -70,6 +71,14 @@ tasks: {
 		exports: [{
 			var: "available_zones"
 			path:  ".data.aws_availability_zones.available.id"
+		}]
+	}
+
+	local_eval: {
+		@task(mantis.Evaluate)
+		exports: [{	
+			cueexpr: "strings.Split(get_azs_data.exports[0].alias, \"-\")[0]"
+			var: "first_az"
 		}]
 	}
 
