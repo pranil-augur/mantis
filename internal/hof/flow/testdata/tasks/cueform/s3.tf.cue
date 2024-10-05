@@ -67,7 +67,7 @@ tasks: {
 		@task(opentf.TF)
 		dep:    setup_providers
 		config: #aws_availability_zones
-		outputs: [{
+		exports: [{
 			alias: "available_zones"
 			path:  ".data.aws_availability_zones.available.id"
 		}]

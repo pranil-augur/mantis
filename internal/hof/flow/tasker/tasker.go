@@ -230,6 +230,12 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 	return injectedNode.(ast.Expr), nil
 }
 
+func parseRunInjectAttr(attrText string) string {
+	attrText = strings.TrimPrefix(attrText, "@runinject(")
+	attrText = strings.TrimSuffix(attrText, ")")
+	return strings.Trim(attrText, "\"")
+}
+
 func buildWarningMessage(varName string, taskId string, globalVars map[string]interface{}) string {
 	var warningMsg strings.Builder
 
@@ -248,12 +254,6 @@ func buildWarningMessage(varName string, taskId string, globalVars map[string]in
 	}
 
 	return warningMsg.String()
-}
-
-func parseRunInjectAttr(attrText string) string {
-	attrText = strings.TrimPrefix(attrText, "@runinject(")
-	attrText = strings.TrimSuffix(attrText, ")")
-	return strings.Trim(attrText, "\"")
 }
 
 func createASTNodeForValue(val interface{}) ast.Expr {
@@ -292,10 +292,10 @@ func createASTNodeForValue(val interface{}) ast.Expr {
 }
 
 func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
-	outputsValue := value.LookupPath(cue.ParsePath("outputs"))
-	outValue := value.LookupPath(cue.ParsePath("out"))
+	exportsValue := value.LookupPath(cue.ParsePath(hof.MantisTaskExports))
+	outValue := value.LookupPath(cue.ParsePath(hof.MantisTaskOuts))
 	// Check if outputsValue is null
-	if !outputsValue.Exists() {
+	if !exportsValue.Exists() {
 		return
 	}
 
@@ -306,10 +306,10 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 		outData = convertCueToInterface(outValue)
 	}
 
-	if outputsValue.Exists() {
-		switch outputsValue.Kind() {
+	if exportsValue.Exists() {
+		switch exportsValue.Kind() {
 		case cue.ListKind:
-			iter, _ := outputsValue.List()
+			iter, _ := exportsValue.List()
 			for iter.Next() {
 				outputDef := iter.Value()
 				alias, _ := outputDef.LookupPath(cue.ParsePath("alias")).String()
@@ -318,10 +318,10 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 				ctx.GlobalVars[alias] = actualValue
 			}
 		default:
-			fmt.Printf("Unexpected outputs kind: %v\n", outputsValue.Kind())
+			fmt.Printf("Unexpected exports kind: %v\n", exportsValue.Kind())
 		}
 	} else {
-		fmt.Println("No outputs defined for this task")
+		fmt.Println("No exports defined for this task")
 	}
 }
 

@@ -20,27 +20,27 @@ install_static_website: {
 		@task(opentf.TF)
 		dep:    setup_providers
 		config: defs.vpc
-		outputs: [{
-			alias: "vpc_id"
+		exports: [{
 			path:  ".module.vpc.aws_vpc.this[0].id"
+			alias: "vpc_id"
 		}, {
-			alias: "public_subnet_ids"
 			path:  ".module.vpc.aws_subnet.public[].id"
+			alias: "public_subnet_ids"
 		}, {
-			alias: "public_subnet_id"
 			path:  ".module.vpc.aws_subnet.public[0].id"
+			alias: "public_subnet_id"
 		}, {
-			alias: "private_subnet_ids"
 			path:  ".module.vpc.aws_subnet.private[].id"
+			alias: "private_subnet_ids"
 		}, {
-			alias: "vpc_cidr_block"
 			path:  ".module.vpc.aws_vpc.this[0].cidr_block"
+			alias: "vpc_cidr_block"
 		}, {
-			alias: "nat_public_ips"
 			path:  ".module.vpc.aws_eip.nat[].public_ip"
+			alias: "nat_public_ips"
 		}, {
-			alias: "default_security_group_id"
 			path:  ".module.vpc.aws_default_security_group.this[].id"
+			alias: "default_security_group_id"
 		}]
 	}
 
@@ -48,9 +48,9 @@ install_static_website: {
 		@task(opentf.TF)
 		dep:    setup_vpc
 		config: defs.subnet_group
-		outputs: [{
-			alias: "subnet_group_ids"
+		exports: [{
 			path:  ".aws_db_subnet_group.this[0].id"
+			alias: "subnet_group_ids"
 		}]
 	}
 
@@ -58,9 +58,9 @@ install_static_website: {
 		@task(opentf.TF)
 		dep: [setup_vpc, db_subnet_group]
 		config: defs.rds
-		outputs: [{
-			alias: "rds_endpoint"
+		exports: [{
 			path:  ".aws_db_instance.this[0].endpoint"
+			alias: "rds_endpoint"
 		}]
 	}
 
