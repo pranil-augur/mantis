@@ -244,9 +244,13 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		if retval < 0 {
 			return nil, fmt.Errorf("error Initializing")
 		}
+	} else if ctx.Gist {
+		// TODO: implement gist
+		return nil, nil
 	} else {
 		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/destroy")
 	}
+
 	return nil, nil
 }
 

@@ -40,6 +40,7 @@ type Context struct {
 	// debug / internal
 	Verbosity int
 	Plan      bool
+	Gist      bool
 	Apply     bool
 	Init      bool
 	Destroy   bool
@@ -119,6 +120,7 @@ func Copy(ctx *Context) *Context {
 		Pools:        ctx.Pools,
 		Apply:        ctx.Apply,
 		Plan:         ctx.Plan,
+		Gist:         ctx.Gist,
 		Init:         ctx.Init,
 		Destroy:      ctx.Destroy,
 		CueContext:   ctx.CueContext,

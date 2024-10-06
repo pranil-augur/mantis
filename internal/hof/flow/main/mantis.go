@@ -50,6 +50,7 @@ func init() {
 	rootCmd.PersistentFlags().StringArrayVarP(&(rflags.Tags), "tags", "t", nil, "@tags() to be injected into CUE code")
 	rootCmd.PersistentFlags().BoolVarP(&(rflags.InjectEnv), "inject-env", "V", false, "inject all ENV VARs as default tag vars")
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Plan, "plan", "P", false, "plan the changes to the state")
+	rootCmd.PersistentFlags().BoolVarP(&rflags.Gist, "gist", "G", false, "gist of changes")
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Apply, "apply", "A", false, "apply the proposed state")
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Init, "init", "I", false, "init modules")
 	rootCmd.PersistentFlags().BoolVarP(&rflags.Destroy, "destroy", "D", false, "destroy resources")

@@ -134,8 +134,9 @@ func (P *Flow) run() error {
 	// create the workflow which will build the task graph
 	P.Ctrl = cueflow.New(cfg, u, tasker.NewTasker(P.FlowCtx))
 
-	if P.FlowCtx.Plan {
-		createAndPrintMantisPlan(P.FlowCtx)
+	if P.FlowCtx.Plan || P.FlowCtx.Gist {
+		P.createAndPrintMantisPlan()
+		P.createAndPrintMantisGraph()
 	}
 
 	// fmt.Println("Flow.run() start")
@@ -167,20 +168,30 @@ func (P *Flow) run() error {
 	return nil
 }
 
-func createAndPrintMantisPlan(ctx *flowctx.Context) (map[string]interface{}, error) {
+func (P *Flow) createAndPrintMantisGraph() (map[string]interface{}, error) {
+	tasks := P.Ctrl.Tasks()
+	for _, t := range tasks {
+		fmt.Println("Task:", t.Path())
+		for _, dep := range t.Dependencies() {
+			fmt.Println("  Depends on:", dep.Path())
+		}
+	}
+
+	return nil, nil
+}
+
+func (P *Flow) createAndPrintMantisPlan() (map[string]interface{}, error) {
 	tfResources := make(map[string]interface{})
-	v := ctx.RootValue
+	v := P.Root
 
-	if ctx.Plan {
-		// Recursively scan the CUE value tree for resources
-		err := scanForLabels(v, cue.Path{}, tfResources, "resource", "module")
-		if err != nil {
-			return nil, fmt.Errorf("error scanning for resources: %v", err)
-		}
+	// Recursively scan the CUE value tree for resources
+	err := scanForLabels(v, cue.Path{}, tfResources, "resource", "module")
+	if err != nil {
+		return nil, fmt.Errorf("error scanning for resources: %v", err)
+	}
 
-		if len(tfResources) == 0 {
-			return nil, fmt.Errorf("no resources found in the CUE configuration")
-		}
+	if len(tfResources) == 0 {
+		return nil, fmt.Errorf("no resources found in the CUE configuration")
 	}
 
 	if len(tfResources) > 0 {

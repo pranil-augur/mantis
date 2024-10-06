@@ -34,6 +34,7 @@ type RootPflagpole struct {
 	Quiet        bool
 	Verbosity    int
 	Plan         bool
+	Gist         bool
 	Apply        bool
 	Init         bool
 	Destroy      bool
@@ -58,6 +59,7 @@ func SetupRootPflags(fset *pflag.FlagSet, fpole *RootPflagpole) {
 	fset.IntVarP(&(fpole.Verbosity), "verbosity", "v", 0, "set the verbosity of output")
 	fset.BoolVarP(&(fpole.Plan), "plan", "P", true, "plan the changes to the state")
 	fset.BoolVarP(&(fpole.Apply), "apply", "A", true, "apply the proposed state")
+	fset.BoolVarP(&(fpole.Gist), "gist", "G", true, "gist of changes")
 }
 
 var RootPflags RootPflagpole
