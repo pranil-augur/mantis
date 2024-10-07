@@ -27,13 +27,6 @@ install_nginx_ingress: {
 		config: defs.deployment
 	}
 
-
-	setup_webhook: {
-		dep: setup_ingress
-		@task(kubernetes.K8s)
-		config: defs.webhook
-	}
-
 	setup_service: {
 		dep: [setup_ingress, setup_service_account]
 		@task(kubernetes.K8s)

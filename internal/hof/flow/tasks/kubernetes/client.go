@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"gopkg.in/yaml.v3" // YAML v3 library for decoding documents
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	"github.com/kylelemons/godebug/diff"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -74,18 +78,18 @@ func NewClient() (*Client, error) {
 }
 
 func (c *Client) Apply(manifest string) error {
-	return c.applyOrDelete(manifest, false, false)
+	return c.applyOrDelete(manifest, false, false, false)
 }
 
 func (c *Client) Delete(manifest string) error {
-	return c.applyOrDelete(manifest, true, false)
+	return c.applyOrDelete(manifest, true, false, false)
 }
 
 func (c *Client) Plan(manifest string) error {
-	return c.applyOrDelete(manifest, false, true)
+	return c.applyOrDelete(manifest, false, false, true)
 }
 
-func (c *Client) applyOrDelete(manifestYAML string, delete bool, dryRun bool) error {
+func (c *Client) applyOrDelete(manifestYAML string, delete bool, dryRun bool, plan bool) error {
 	var obj map[string]interface{}
 	err := yaml.Unmarshal([]byte(manifestYAML), &obj)
 	if err != nil {
@@ -128,8 +132,13 @@ func (c *Client) applyOrDelete(manifestYAML string, delete bool, dryRun bool) er
 			}
 		}
 	} else {
-		if dryRun {
-			fmt.Printf("Would apply %s/%s (dry run)\n", gvk.Kind, u.GetName())
+		if dryRun || plan {
+			if plan {
+				err = c.showDiff(resourceClient, u)
+				if err != nil {
+					return fmt.Errorf("failed to show diff for %s/%s: %w", gvk.Kind, u.GetName(), err)
+				}
+			}
 		} else {
 			_, err = resourceClient.Apply(ctx, u.GetName(), u, metav1.ApplyOptions{FieldManager: "client"})
 			if err != nil {
@@ -139,4 +148,61 @@ func (c *Client) applyOrDelete(manifestYAML string, delete bool, dryRun bool) er
 	}
 
 	return nil
+}
+
+func (c *Client) showDiff(resourceClient dynamic.ResourceInterface, expected *unstructured.Unstructured) error {
+	actual, err := resourceClient.Get(context.TODO(), expected.GetName(), metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			fmt.Printf("Resource does not exist. It will be created.\n")
+			return nil
+		}
+		return err
+	}
+
+	// Remove fields that are not relevant for comparison
+	removeFields(actual)
+	removeFields(expected)
+
+	if equality.Semantic.DeepEqual(actual, expected) {
+		fmt.Printf("No changes detected.\n")
+		return nil
+	}
+
+	actualYAML, err := runtime.Encode(unstructured.UnstructuredJSONScheme, actual)
+	if err != nil {
+		return err
+	}
+
+	expectedYAML, err := runtime.Encode(unstructured.UnstructuredJSONScheme, expected)
+	if err != nil {
+		return err
+	}
+
+	diffString := diff.Diff(string(actualYAML), string(expectedYAML))
+
+	if diffString == "" {
+		fmt.Printf("No differences detected.\n")
+		return nil // No differences found
+	}
+	lines := strings.Split(diffString, "\n")
+	for _, line := range lines {
+		switch {
+		case strings.HasPrefix(line, "+"):
+			fmt.Printf("\033[32m%s\033[0m\n", line) // Green for additions
+		case strings.HasPrefix(line, "-"):
+			fmt.Printf("\033[31m%s\033[0m\n", line) // Red for deletions
+		default:
+			fmt.Println(line)
+		}
+	}
+	return nil
+}
+
+func removeFields(obj *unstructured.Unstructured) {
+	unstructured.RemoveNestedField(obj.Object, "metadata", "creationTimestamp")
+	unstructured.RemoveNestedField(obj.Object, "metadata", "resourceVersion")
+	unstructured.RemoveNestedField(obj.Object, "metadata", "uid")
+	unstructured.RemoveNestedField(obj.Object, "metadata", "generation")
+	unstructured.RemoveNestedField(obj.Object, "status")
 }

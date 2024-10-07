@@ -35,6 +35,24 @@ deployment: {
             "--configmap=$(POD_NAMESPACE)/ingress-nginx-controller",
             "--watch-ingress-without-class=true",
           ]
+          env: [
+            {
+              name: "POD_NAME"
+              valueFrom: {
+                fieldRef: {
+                  fieldPath: "metadata.name"
+                }
+              }
+            },
+            {
+              name: "POD_NAMESPACE"
+              valueFrom: {
+                fieldRef: {
+                  fieldPath: "metadata.namespace"
+                }
+              }
+            }
+          ]
           ports: [{
             name:          "http"
             containerPort: 80
