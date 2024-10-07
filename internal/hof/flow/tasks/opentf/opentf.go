@@ -28,7 +28,7 @@ import (
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/getproviders"
 	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
-	"github.com/opentofu/opentofu/internal/hof/lib/hof"
+	"github.com/opentofu/opentofu/internal/hof/lib/mantis"
 	"github.com/opentofu/opentofu/internal/terminal"
 	"github.com/opentofu/opentofu/internal/utils"
 	"github.com/zclconf/go-cty/cty"
@@ -211,12 +211,12 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		// fmt.Printf("Parsed Variables: %+v\n", parsedVariablesMap)
 		// v.FillPath(cue.ParsePath("out"), parsedVariables)
 		// Attempt to fill the path with the new value
-		newV := v.FillPath(cue.ParsePath(hof.MantisTaskOuts), parsedVariablesMap)
+		newV := v.FillPath(cue.ParsePath(mantis.MantisTaskOuts), parsedVariablesMap)
 
 		return newV, nil
 	} else if ctx.Init {
 		cueContext := cuecontext.New()
-		value := cueContext.CompileString(scriptStr, cue.Filename(hof.MantisJsonConfig))
+		value := cueContext.CompileString(scriptStr, cue.Filename(mantis.MantisJsonConfig))
 		terraformOrModule := value.LookupPath(cue.ParsePath("terraform")).Exists() || value.LookupPath(cue.ParsePath("module")).Exists()
 		if !terraformOrModule {
 			return nil, nil
@@ -255,7 +255,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 }
 
 func createStatePath(taskID string) string {
-	return fmt.Sprintf(hof.MantisStateFilePath, taskID)
+	return fmt.Sprintf(mantis.MantisStateFilePath, taskID)
 }
 
 func convertCtyToGo(input *sync.Map) (map[string]interface{}, error) {

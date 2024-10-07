@@ -15,7 +15,7 @@ import (
 	"cuelang.org/go/pkg/encoding/yaml"
 
 	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
-	"github.com/opentofu/opentofu/internal/hof/lib/hof"
+	"github.com/opentofu/opentofu/internal/hof/lib/mantis"
 )
 
 type K8sTask struct{}
@@ -64,6 +64,6 @@ func (t *K8sTask) Run(ctx *hofcontext.Context) (any, error) {
 		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/destroy")
 	}
 	fmt.Println("Operation completed successfully")
-	newV := v.FillPath(cue.ParsePath(hof.MantisTaskOuts), "Resource applied successfully")
+	newV := v.FillPath(cue.ParsePath(mantis.MantisTaskOuts), "Resource applied successfully")
 	return newV, nil
 }
