@@ -1,0 +1,15 @@
+This repository contains code from multiple open-source projects, including:
+
+1. OpenTofu (https://github.com/opentofu/opentofu)
+   Licensed under the Mozilla Public License 2.0 (MPL 2.0)
+   For full license text, see: https://www.mozilla.org/en-US/MPL/2.0/
+
+2. hof (https://github.com/hofstadter-io/hof)
+   Licensed under the Apache License, Version 2.0
+   For full license text, see: http://www.apache.org/licenses/LICENSE-2.0
+
+We acknowledge and are grateful to these developers for their contributions to open source.
+
+This project may include modifications to the original code. For specific details on the modifications and additional code, please refer to the project's source files and commit history.
+
+For all third-party components incorporated into this project, we respect and adhere to the terms of their respective licenses.
