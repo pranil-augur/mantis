@@ -1,4 +1,4 @@
-package test
+package main
 
 
 #providers: {
@@ -60,12 +60,12 @@ package test
 tasks: {
 	@flow(s3_setup)
 	setup_providers: {
-		@task(opentf.TF)
+		@task(mantis.core.TF)
 		config: #providers
 	}
 
 	get_azs_data: {
-		@task(opentf.TF)
+		@task(mantis.core.TF)
 		dep:    setup_providers
 		config: #aws_availability_zones
 		exports: [{
@@ -75,21 +75,21 @@ tasks: {
 	}
 
 	local_eval: {
-		@task(mantis.Evaluate)
+		@task(mantis.core.Evaluate)
 		exports: [{	
-			cueexpr: "strings.Split(get_azs_data.exports[0].alias, \"-\")[0]"
+			cueexpr: "strings.Split(get_azs_data.exports[0].var, \"-\")[0]"
 			var: "first_az"
 		}]
 	}
 
 	setup_s3: {
-		@task(opentf.TF)
+		@task(mantis.core.TF)
 		dep: [setup_providers, get_azs_data]
 		config: #s3BucketConfig
 	}
-	
+
 	setup_s3_1: {
-		@task(opentf.TF)
+		@task(mantis.core.K8s)
 		dep: [setup_s3]
 		config: #s3BucketConfig1
 	}

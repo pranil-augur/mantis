@@ -11,25 +11,25 @@ import (
 install_nginx_ingress: {
 	@flow(install_nginx_ingress)
 	setup_namespace: {
-		@task(kubernetes.K8s)
+		@task(mantis.core.K8s)
 		config: defs.namespace
 	}
 
 	setup_service_account: {
 		dep: setup_namespace
-		@task(kubernetes.K8s)
+		@task(mantis.core.K8s)
 		config: defs.serviceAccount
 	}
 
 	setup_ingress: {
 		dep: setup_service_account
-		@task(kubernetes.K8s)
+		@task(mantis.core.K8s)
 		config: defs.deployment
 	}
 
 	setup_service: {
 		dep: [setup_ingress, setup_service_account]
-		@task(kubernetes.K8s)
+		@task(mantis.core.K8s)
 		config: defs.service
 	}
 }
