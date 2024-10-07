@@ -29,6 +29,7 @@ import (
 	"github.com/opentofu/opentofu/internal/hof/flow/task"
 	"github.com/opentofu/opentofu/internal/hof/lib/cuetils"
 	"github.com/opentofu/opentofu/internal/hof/lib/hof"
+	"github.com/opentofu/opentofu/internal/hof/lib/mantis"
 )
 
 var debug = false
@@ -295,8 +296,8 @@ func createASTNodeForValue(val interface{}) ast.Expr {
 }
 
 func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
-	exportsValue := value.LookupPath(cue.ParsePath(hof.MantisTaskExports))
-	outValue := value.LookupPath(cue.ParsePath(hof.MantisTaskOuts))
+	exportsValue := value.LookupPath(cue.ParsePath(mantis.MantisTaskExports))
+	outValue := value.LookupPath(cue.ParsePath(mantis.MantisTaskOuts))
 	// Check if outputsValue is null
 	if !exportsValue.Exists() {
 		return
@@ -315,8 +316,8 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 			iter, _ := exportsValue.List()
 			for iter.Next() {
 				outputDef := iter.Value()
-				varName, _ := outputDef.LookupPath(cue.ParsePath(hof.MantisVar)).String()
-				jqPath, _ := outputDef.LookupPath(cue.ParsePath(hof.MantisTaskPath)).String()
+				varName, _ := outputDef.LookupPath(cue.ParsePath(mantis.MantisVar)).String()
+				jqPath, _ := outputDef.LookupPath(cue.ParsePath(mantis.MantisTaskPath)).String()
 				actualValue := processOutput(ctx, varName, jqPath, outData)
 				ctx.GlobalVars[varName] = actualValue
 			}

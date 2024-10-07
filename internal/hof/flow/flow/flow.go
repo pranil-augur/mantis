@@ -24,6 +24,7 @@ import (
 	"github.com/opentofu/opentofu/internal/hof/flow/tasker"
 	"github.com/opentofu/opentofu/internal/hof/lib/cuetils"
 	"github.com/opentofu/opentofu/internal/hof/lib/hof"
+	"github.com/opentofu/opentofu/internal/hof/lib/mantis"
 )
 
 type Flow struct {
@@ -188,6 +189,16 @@ func (P *Flow) createAndPrintMantisPlan() (map[string]interface{}, error) {
 	err := scanForLabels(v, cue.Path{}, tfResources, "resource", "module")
 	if err != nil {
 		return nil, fmt.Errorf("error scanning for resources: %v", err)
+	}
+
+	// Scan for Kubernetes resources
+	kubernetesLabels := make([]string, 0, len(mantis.MantisKubernetesResourceNames))
+	for _, resourceName := range mantis.MantisKubernetesResourceNames {
+		kubernetesLabels = append(kubernetesLabels, resourceName)
+	}
+	err = scanForLabels(v, cue.Path{}, tfResources, kubernetesLabels...)
+	if err != nil {
+		return nil, fmt.Errorf("error scanning for Kubernetes resources: %v", err)
 	}
 
 	if len(tfResources) == 0 {
@@ -370,23 +381,6 @@ func printResourceTree(resource map[string]interface{}, depth int) {
 			if len(detailMap) > 0 {
 				fmt.Println()
 				//printResourceDetails(detailMap, depth+1)
-			} else {
-				fmt.Println()
-			}
-		} else {
-			fmt.Println()
-		}
-	}
-}
-
-func printResourceDetails(details map[string]interface{}, depth int) {
-	indent := strings.Repeat("  ", depth)
-	for key, value := range details {
-		fmt.Printf("%s├─ %s", indent, key)
-		if subMap, ok := value.(map[string]interface{}); ok {
-			if len(subMap) > 0 {
-				fmt.Println()
-				printResourceDetails(subMap, depth+1)
 			} else {
 				fmt.Println()
 			}
