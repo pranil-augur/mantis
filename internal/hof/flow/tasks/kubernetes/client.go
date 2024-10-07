@@ -3,16 +3,20 @@ package kubernetes
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+
+	"k8s.io/apimachinery/pkg/api/meta"
 
 	"gopkg.in/yaml.v3" // YAML v3 library for decoding documents
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -23,8 +27,29 @@ type Client struct {
 	mapper    *restmapper.DeferredDiscoveryRESTMapper
 }
 
+func getConfig() (*rest.Config, error) {
+	// Try in-cluster config first
+	config, err := rest.InClusterConfig()
+	if err == nil {
+		return config, nil
+	}
+
+	// If that fails, try the default kubeconfig
+	kubeconfigPath := os.Getenv("KUBECONFIG")
+	if kubeconfigPath == "" {
+		kubeconfigPath = filepath.Join(os.Getenv("HOME"), ".kube", "config")
+	}
+
+	config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load kubeconfig: %v", err)
+	}
+
+	return config, nil
+}
+
 func NewClient() (*Client, error) {
-	config, err := clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
+	config, err := getConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -48,58 +73,67 @@ func NewClient() (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Apply(manifests []byte) error {
-	return c.applyOrDelete(manifests, false, false)
+func (c *Client) Apply(manifest string) error {
+	return c.applyOrDelete(manifest, false, false)
 }
 
-func (c *Client) Delete(manifests []byte) error {
-	return c.applyOrDelete(manifests, true, false)
+func (c *Client) Delete(manifest string) error {
+	return c.applyOrDelete(manifest, true, false)
 }
 
-func (c *Client) Plan(manifests []byte) error {
-	return c.applyOrDelete(manifests, false, true)
+func (c *Client) Plan(manifest string) error {
+	return c.applyOrDelete(manifest, false, true)
 }
 
-func (c *Client) applyOrDelete(manifests []byte, delete bool, dryRun bool) error {
-	var objects []map[string]interface{}
-	err := yaml.Unmarshal(manifests, &objects)
+func (c *Client) applyOrDelete(manifestYAML string, delete bool, dryRun bool) error {
+	var obj map[string]interface{}
+	err := yaml.Unmarshal([]byte(manifestYAML), &obj)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal manifests: %w", err)
+		return fmt.Errorf("failed to unmarshal manifest: %w", err)
 	}
 
-	for _, obj := range objects {
-		u := &unstructured.Unstructured{Object: obj}
-		gvk := u.GroupVersionKind()
-		gvr, _ := schema.ParseResourceArg(gvk.GroupVersion().String() + "." + gvk.Kind)
+	u := &unstructured.Unstructured{Object: obj}
+	gvk := u.GroupVersionKind()
 
-		namespace := u.GetNamespace()
+	// Get the GVR
+	mapping, err := c.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return fmt.Errorf("failed to get REST mapping: %w", err)
+	}
+
+	gvr := mapping.Resource
+
+	var resourceClient dynamic.ResourceInterface
+	namespace := u.GetNamespace()
+	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
+		// Cluster-scoped resource
+		resourceClient = c.dynamic.Resource(gvr)
+	} else {
+		// Namespace-scoped resource
 		if namespace == "" {
-			namespace = "default"
+			namespace = "default" // or any other default namespace you want to use
 		}
+		resourceClient = c.dynamic.Resource(gvr).Namespace(namespace)
+	}
 
-		resourceClient := c.dynamic.Resource(*gvr).Namespace(namespace)
+	ctx := context.Background()
 
-		ctx := context.Background()
-
-		if delete {
-			if dryRun {
-				fmt.Printf("Would delete %s/%s (dry run)\n", gvk.Kind, u.GetName())
-			} else {
-				err = resourceClient.Delete(ctx, u.GetName(), metav1.DeleteOptions{})
-				if err != nil && !k8serrors.IsNotFound(err) {
-					return fmt.Errorf("failed to delete %s/%s: %w", gvk.Kind, u.GetName(), err)
-				}
-				fmt.Printf("Deleted %s/%s\n", gvk.Kind, u.GetName())
-			}
+	if delete {
+		if dryRun {
+			fmt.Printf("Would delete %s/%s (dry run)\n", gvk.Kind, u.GetName())
 		} else {
-			if dryRun {
-				fmt.Printf("Would apply %s/%s (dry run)\n", gvk.Kind, u.GetName())
-			} else {
-				_, err = resourceClient.Apply(ctx, u.GetName(), u, metav1.ApplyOptions{FieldManager: "client"})
-				if err != nil {
-					return fmt.Errorf("failed to apply %s/%s: %w", gvk.Kind, u.GetName(), err)
-				}
-				fmt.Printf("Applied %s/%s\n", gvk.Kind, u.GetName())
+			err = resourceClient.Delete(ctx, u.GetName(), metav1.DeleteOptions{})
+			if err != nil && !k8serrors.IsNotFound(err) {
+				return fmt.Errorf("failed to delete %s/%s: %w", gvk.Kind, u.GetName(), err)
+			}
+		}
+	} else {
+		if dryRun {
+			fmt.Printf("Would apply %s/%s (dry run)\n", gvk.Kind, u.GetName())
+		} else {
+			_, err = resourceClient.Apply(ctx, u.GetName(), u, metav1.ApplyOptions{FieldManager: "client"})
+			if err != nil {
+				return fmt.Errorf("failed to apply %s/%s: %w", gvk.Kind, u.GetName(), err)
 			}
 		}
 	}
