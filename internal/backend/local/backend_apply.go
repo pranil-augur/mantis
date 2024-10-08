@@ -42,9 +42,8 @@ func (b *Local) opApply(
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"No configuration files",
-			"Apply requires configuration to be present. Applying without a configuration "+
-				"would mark everything for destruction, which is normally not what is desired. "+
-				"If you would like to destroy everything, run 'tofu destroy' instead.",
+			"Apply requires a .tf.cue file. Without it, everything would be marked for destruction. "+
+				"To destroy everything, use the -destroy option. Otherwise, create a .tf.cue file and try again.",
 		))
 		op.ReportResult(runningOp, diags)
 		return

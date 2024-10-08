@@ -317,8 +317,10 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 			for iter.Next() {
 				outputDef := iter.Value()
 				varName, _ := outputDef.LookupPath(cue.ParsePath(mantis.MantisVar)).String()
-				jqPath, _ := outputDef.LookupPath(cue.ParsePath(mantis.MantisTaskPath)).String()
-				actualValue := processOutput(ctx, varName, jqPath, outData)
+				jqPath, _ := outputDef.LookupPath(cue.ParsePath(mantis.MantisDataSourcePath)).String()
+				exportAs := outputDef.LookupPath(cue.ParsePath(mantis.MantisExportAs)).Kind()
+
+				actualValue := processOutput(ctx, varName, jqPath, outData, exportAs)
 				ctx.GlobalVars[varName] = actualValue
 			}
 		default:
@@ -329,7 +331,7 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 	}
 }
 
-func processOutput(ctx *flowctx.Context, varName, jqPath string, outData interface{}) interface{} {
+func processOutput(ctx *flowctx.Context, varName, jqPath string, outData interface{}, exportAs cue.Kind) interface{} {
 	actualValue, ok := queryJQ(outData, jqPath)
 	if !ok {
 		ctx.AddWarning(fmt.Sprintf("Value not found at path: %s for var: %s\n", jqPath, varName))
@@ -337,7 +339,7 @@ func processOutput(ctx *flowctx.Context, varName, jqPath string, outData interfa
 	}
 
 	// Determine if the query should return an array
-	if shouldReturnArray(jqPath) {
+	if shouldReturnArray(jqPath) || exportAs == cue.ListKind {
 		// Ensure the result is always an array
 		if slice, isSlice := actualValue.([]interface{}); isSlice {
 			return slice

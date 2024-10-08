@@ -41,12 +41,15 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 		// locals : {
 		// 	@task(mantis.evaluate)
 		// 		exports: [{
-		// 			expression: string
-		// 			alias: string
+		// 			cueexpr: string
+		// 			var: string
 		// 		}]
 		// }
 
+		// Marshal the unified result to JSON
+
 		exports := v.LookupPath(cue.ParsePath("exports"))
+
 		iter, _ := exports.List()
 		for iter.Next() {
 			cueExpression := iter.Value().LookupPath(cue.ParsePath("cueexpr"))
@@ -63,6 +66,10 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 				return err
 			}
 			evalContext := v.Context()
+			script := ctx.RootValue
+			jsonScript, err := script.MarshalJSON()
+			fmt.Printf("jsonScript %v\n", jsonScript)
+
 			transformedValue := evalContext.CompileString(exprStr, cue.Scope(ctx.RootValue))
 			if transformedValue.Err() != nil {
 				fmt.Printf("Failed to compile CUE expression: %v\n", transformedValue.Err())
