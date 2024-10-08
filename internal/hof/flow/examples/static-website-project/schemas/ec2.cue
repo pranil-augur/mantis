@@ -1,7 +1,7 @@
 package schemas
 
 #ModuleEC2: {
-	source:        string
+	source:        string 
 	version:       string
 	name:          string
 	ami:           string

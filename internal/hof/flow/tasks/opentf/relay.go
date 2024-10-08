@@ -69,7 +69,7 @@ func (t *RelayTask) Run(ctx *hofcontext.Context) (any, error) {
 				return nil, fmt.Errorf("failed to decode value for %s: %v", varName, err)
 			}
 			// add them to the GlobalVars
-			ctx.GlobalVars[varName] = extracted
+			ctx.GlobalVars.Store(varName, extracted)
 		} else {
 			return nil, fmt.Errorf("variable %s not found in script", varName)
 		}
