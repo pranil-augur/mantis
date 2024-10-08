@@ -76,7 +76,7 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 			}
 			fmt.Printf("Transformed value: %v\n", transformedValue)
 			// Set the transformed value in the global vars
-			ctx.GlobalVars[varStr] = transformedValue
+			ctx.GlobalVars.Store(varStr, transformedValue)
 		}
 		return nil
 	}()

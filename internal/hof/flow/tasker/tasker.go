@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/itchyny/gojq"
 
@@ -209,7 +210,10 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 	}), nil
 }
 
-func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globalVars map[string]interface{}) (ast.Expr, error) {
+func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globalVars *sync.Map) (ast.Expr, error) {
+	if globalVars == nil {
+		return nil, fmt.Errorf("globalVars is nil")
+	}
 	f := value.Syntax(cue.Final()).(ast.Expr)
 	// Process @preinject attributes before @runinject
 	injectedNode := astutil.Apply(f, nil, func(c astutil.Cursor) bool {
@@ -219,7 +223,7 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 			for _, attr := range x.Attrs {
 				if strings.HasPrefix(attr.Text, "@var") {
 					varName := parseRunInjectAttr(attr.Text)
-					if val, ok := globalVars[varName]; ok {
+					if val, ok := globalVars.Load(varName); ok {
 						x.Value = createASTNodeForValue(val)
 					} else {
 						warningMessage := buildWarningMessage(varName, taskId, globalVars)
@@ -240,17 +244,18 @@ func parseRunInjectAttr(attrText string) string {
 	return strings.Trim(attrText, "\"")
 }
 
-func buildWarningMessage(varName string, taskId string, globalVars map[string]interface{}) string {
+func buildWarningMessage(varName string, taskId string, globalVars *sync.Map) string {
 	var warningMsg strings.Builder
 
 	warningMsg.WriteString(fmt.Sprintf("var '%v' not found in task '%v'\n", varName, taskId))
 	warningMsg.WriteString("Available vars:\n")
 
 	// Sort the keys for consistent output
-	keys := make([]string, 0, len(globalVars))
-	for k := range globalVars {
-		keys = append(keys, k)
-	}
+	keys := make([]string, 0)
+	globalVars.Range(func(key, value interface{}) bool {
+		keys = append(keys, key.(string))
+		return true
+	})
 	sort.Strings(keys)
 
 	for _, k := range keys {
@@ -321,7 +326,7 @@ func updateGlobalVars(ctx *flowctx.Context, value cue.Value) {
 				exportAs := outputDef.LookupPath(cue.ParsePath(mantis.MantisExportAs)).Kind()
 
 				actualValue := processOutput(ctx, varName, jqPath, outData, exportAs)
-				ctx.GlobalVars[varName] = actualValue
+				ctx.GlobalVars.Store(varName, actualValue)
 			}
 		default:
 			fmt.Printf("Unexpected exports kind: %v\n", exportsValue.Kind())
