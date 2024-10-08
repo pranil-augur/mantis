@@ -44,7 +44,7 @@ func RegisterDefaults(context *hofcontext.Context) {
 	context.Register("mantis.core.TF", opentf.NewTFTask)
 	context.Register("mantis.core.K8s", kubernetes.NewK8sTask)
 	context.Register("mantis.core.Evaluate", mantis.NewLocalEvaluator)
-
+	context.Register("mantis.core.Relay", opentf.NewRelayTask)
 	context.Register("hof.Template", hof.NewHofTemplate)
 
 	context.Register("kv.Mem", kv.NewMem)

@@ -1,0 +1,35 @@
+package main
+
+import (
+    "augur.ai/rds-flask-app/defs"
+)
+
+// Flow to set up the RDS instance and deploy the Flask app on Kubernetes
+deploy_flask_rds: {
+    @flow(deploy_flask_rds)
+
+    // Step 1: Set up cloud providers
+    setup_tf_providers: {
+        @task(mantis.core.TF)
+        config: defs.#providers
+    }
+
+    // Step 2: Create the RDS instance
+    setup_rds: {
+        @task(mantis.core.TF)
+        dep: [setup_tf_providers]
+        config: defs.rds
+        exports: [{
+            path: ".aws_db_instance.this[0].endpoint"
+            var:  "rds_endpoint"
+        }]
+    }
+
+    // Step 3: Deploy the Flask app on Kubernetes
+    deploy_flask_app: {
+        @task(mantis.core.K8s)
+        dep: [setup_rds]
+        config: defs.flaskRdsDeployment 
+    }
+}
+

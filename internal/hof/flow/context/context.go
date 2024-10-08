@@ -74,7 +74,7 @@ type Context struct {
 	CueContext *cue.Context
 
 	// output vars
-	GlobalVars map[string]interface{}
+	GlobalVars *sync.Map
 	// store flow errors and warnings
 	FlowErrors   []string
 	FlowWarnings []string
@@ -92,7 +92,7 @@ func New() *Context {
 		Tasks:        new(sync.Map),
 		Pools:        new(sync.Map),
 		CueContext:   nil,
-		GlobalVars:   make(map[string]interface{}),
+		GlobalVars:   new(sync.Map),
 		FlowErrors:   []string{},
 		FlowWarnings: []string{},
 	}
