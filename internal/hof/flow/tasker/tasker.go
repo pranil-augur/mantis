@@ -214,7 +214,18 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 	if globalVars == nil {
 		return nil, fmt.Errorf("globalVars is nil")
 	}
-	f := value.Syntax(cue.Final()).(ast.Expr)
+
+	f := value.Syntax(cue.Final())
+	expr, ok := f.(ast.Expr)
+	if !ok {
+		return nil, fmt.Errorf("failed to convert value to ast.Expr for task %s", taskId)
+	}
+
+	// Check if the expression is valid before proceeding
+	if expr == nil {
+		return nil, fmt.Errorf("invalid or missing configuration for task %s", taskId)
+	}
+
 	// Process @preinject attributes before @runinject
 	injectedNode := astutil.Apply(f, nil, func(c astutil.Cursor) bool {
 		n := c.Node()

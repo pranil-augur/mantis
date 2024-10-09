@@ -248,7 +248,7 @@ func (t *TFTask) Run(ctx *hofcontext.Context) (any, error) {
 		// TODO: implement gist
 		return nil, nil
 	} else {
-		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/destroy")
+		return nil, fmt.Errorf("unknown command. Need to use one of init/plan/apply/destroy")
 	}
 
 	return nil, nil
