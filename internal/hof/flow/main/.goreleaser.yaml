@@ -59,8 +59,8 @@ brews:
   name: mantis
   homepage: https://getaugur.ai
   commit_author:
-      name: kaushil24
-      email: kaushil.kundalia@getaugur.ai
+      name: pranil dasika
+      email: pranil.dasika@getaugur.ai
   commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
   repository:
       owner: pranil-augur

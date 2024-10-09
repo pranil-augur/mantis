@@ -60,7 +60,7 @@ func (t *K8sTask) Run(ctx *hofcontext.Context) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("destroy failed: %v", err)
 		}
-	} else {
+	} else if !ctx.Init { // Init has nothing to do for K8s
 		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/destroy")
 	}
 	fmt.Println("Operation completed successfully")
