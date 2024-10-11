@@ -10,15 +10,13 @@ package mantis
 
 import (
 	"fmt"
-	"log"
+	"os"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/load"
 	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 )
-
-func evaluate(ctx *cue.Context, node *cue.Value) (*cue.Value, error) {
-	return node, nil
-}
 
 type LocalEvaluator struct{}
 
@@ -28,33 +26,19 @@ func NewLocalEvaluator(val cue.Value) (hofcontext.Runner, error) {
 
 // Run processes locals and dynamically evaluates expressions
 func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
-
 	v := ctx.Value
 
 	ferr := func() error {
 		ctx.CUELock.Lock()
-		defer func() {
-			ctx.CUELock.Unlock()
-		}()
-
-		// Input will be in the form of :
-		// locals : {
-		// 	@task(mantis.evaluate)
-		// 		exports: [{
-		// 			cueexpr: string
-		// 			var: string
-		// 		}]
-		// }
-
-		// Marshal the unified result to JSON
+		defer ctx.CUELock.Unlock()
 
 		exports := v.LookupPath(cue.ParsePath("exports"))
-
 		iter, _ := exports.List()
+
 		for iter.Next() {
 			cueExpression := iter.Value().LookupPath(cue.ParsePath("cueexpr"))
 			if !cueExpression.Exists() {
-				log.Fatalf("Path 'cueexpr' not found in CUE file")
+				return fmt.Errorf("path 'cueexpr' not found in CUE file")
 			}
 			varVal := iter.Value().LookupPath(cue.ParsePath("var"))
 			varStr, err := varVal.String()
@@ -65,25 +49,59 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 			if err != nil {
 				return err
 			}
-			evalContext := v.Context()
-			script := ctx.RootValue
-			jsonScript, err := script.MarshalJSON()
-			fmt.Printf("jsonScript %v\n", jsonScript)
 
-			transformedValue := evalContext.CompileString(exprStr, cue.Scope(ctx.RootValue))
-			if transformedValue.Err() != nil {
-				fmt.Printf("Failed to compile CUE expression: %v\n", transformedValue.Err())
+			// Create a temporary CUE file with the expression and necessary imports
+			tmpFile, err := createTempCueFile(exprStr)
+			if err != nil {
+				return fmt.Errorf("failed to create temporary CUE file: %w", err)
 			}
-			fmt.Printf("Transformed value: %v\n", transformedValue)
+			defer os.Remove(tmpFile)
+
+			// Create a new CUE context
+			cueCtx := cuecontext.New()
+
+			// Load the CUE file
+			instances := load.Instances([]string{tmpFile}, nil)
+			if len(instances) == 0 {
+				return fmt.Errorf("no instances loaded")
+			}
+
+			// Build the CUE value
+			value := cueCtx.BuildInstance(instances[0])
+			if value.Err() != nil {
+				return fmt.Errorf("failed to build CUE instance: %w", value.Err())
+			}
+
+			// Evaluate the expression in the context of the root value
+			transformedValue := value.FillPath(cue.Path{}, ctx.RootValue)
+			if transformedValue.Err() != nil {
+				return fmt.Errorf("failed to evaluate CUE expression: %w", transformedValue.Err())
+			}
+
 			// Set the transformed value in the global vars
 			ctx.GlobalVars.Store(varStr, transformedValue)
 		}
 		return nil
 	}()
+
 	if ferr != nil {
 		return nil, ferr
 	}
 
 	// Return updated CUE context with evaluated locals
 	return ctx.Value, nil
+}
+
+func createTempCueFile(content string) (string, error) {
+	tmpFile, err := os.CreateTemp("", "evaluate*.cue")
+	if err != nil {
+		return "", err
+	}
+	defer tmpFile.Close()
+
+	if _, err := tmpFile.WriteString(content); err != nil {
+		return "", err
+	}
+
+	return tmpFile.Name(), nil
 }
