@@ -4,11 +4,11 @@
 powered by [CUE](https://cuelang.org/)
 and inspired by [OpenTofu](https://opentofu.org/) and [Helm](https://helm.sh/).
 
-
 > [!IMPORTANT]
 > Note that Mantis is under active development and is not yet ready for production use.
 > The APIs and command-line interface may change in a backwards incompatible manner.
 
+![](https://github.com/pranil-augur/mantis/blob/5db82db255a3e2af02288699af5a0af83d8a0cfd/mantis_vision.png)
 
 The key features of Mantis are:
 
