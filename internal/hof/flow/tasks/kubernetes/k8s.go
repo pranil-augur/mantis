@@ -30,6 +30,11 @@ func (t *K8sTask) Run(ctx *hofcontext.Context) (any, error) {
 	configValue := v.LookupPath(cue.ParsePath("config"))
 	manifest, err := yaml.Marshal(configValue)
 
+	// Nothing to do for init for Kubernetes
+	if ctx.Init {
+		return v, nil
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract manifests from CUE: %v", err)
 	}
@@ -44,21 +49,21 @@ func (t *K8sTask) Run(ctx *hofcontext.Context) (any, error) {
 		// Perform a dry-run to simulate changes
 		err = client.Plan(string(manifest))
 		if err != nil {
-			return nil, fmt.Errorf("plan failed: %v", err)
+			return nil, fmt.Errorf("plan failed. Check if Kubernetes cluster is accessible: %v", err)
 		}
 
 	} else if ctx.Apply {
 		// Apply the changes to the cluster
 		err = client.Apply(manifest)
 		if err != nil {
-			return nil, fmt.Errorf("apply failed: %v", err)
+			return nil, fmt.Errorf("apply failed. Check if Kubernetes cluster is accessible: %v", err)
 		}
 
 	} else if ctx.Destroy {
 		// Delete the specified resources
 		err = client.Delete(manifest)
 		if err != nil {
-			return nil, fmt.Errorf("destroy failed: %v", err)
+			return nil, fmt.Errorf("destroy failed. Check if Kubernetes cluster is accessible: %v", err)
 		}
 	} else if !ctx.Init { // Init has nothing to do for K8s
 		return nil, fmt.Errorf("unknown command. Need to use one of plan/apply/destroy")
