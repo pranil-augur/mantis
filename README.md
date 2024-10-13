@@ -22,12 +22,20 @@ and inspired by [OpenTofu](https://opentofu.org/) and [Helm](https://helm.sh/).
 
 
 ### Quick install (Mac and Linux)
+```
 brew install pranil-augur/homebrew-mantis/mantis
+```
 
-**Documentation**: [Getting started](https://mantis.getaugur.ai/docs/getting_started/installation)
+**Documentation**
+[Getting started](https://mantis.getaugur.ai/docs/getting_started/installation)
 
+### Acknowledgements
+As we look toward the future, we see tremendous growth in infrastructure demands, both in scale and complexity. Mantis builds on the strong shoulders of Terraform, OpenTofu and CUE and we deeply appreciate their work. We believe Mantis will play a critical role in helping organizations scale their infrastructure more efficiently as they prepare for the next wave of innovation, and that would benefit the overall automation ecosystem.
 
-### Community
-**Slack channel**: [Join the community](https://mantiscommunity.slack.com/)
-**License**: Mantis is currently under a proprietary license. We will soon move to a fair source license. (https://fair.io/licenses/)
+### Feedback and Community
+We'd love to hear from you. Leave us a comment, join our slack or start a discussion 
+
+**Slack channel**: [Join the community](https://mantiscommunity.slack.com/).
+
+**License**: Mantis is currently under a proprietary license. We will soon move to a fair source license. (https://fair.io/licenses/).
 
