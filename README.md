@@ -14,7 +14,7 @@ and inspired by [OpenTofu](https://opentofu.org/) and [Helm](https://helm.sh/).
 
 
 ### Mantis Demo
-[![Mantis demo video](https://cdn.loom.com/sessions/thumbnails/b8c48935df8f4752b305e64fc3bb3845-dcb08c1dd0ea79cb-full.jpg)](https://www.loom.com/share/b8c48935df8f4752b305e64fc3bb3845)
+[![Mantis demo video](mantis_thumbnail.png)](https://www.loom.com/share/b8c48935df8f4752b305e64fc3bb3845)
 
 ### Key features of Mantis include:
 
