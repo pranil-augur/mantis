@@ -12,6 +12,10 @@ and inspired by [OpenTofu](https://opentofu.org/) and [Helm](https://helm.sh/).
 ## Mantis Vision
 ![](https://github.com/pranil-augur/mantis/blob/5db82db255a3e2af02288699af5a0af83d8a0cfd/mantis_vision.png)
 
+
+### Mantis Demo
+[![Mantis demo video](https://cdn.loom.com/sessions/thumbnails/b8c48935df8f4752b305e64fc3bb3845-dcb08c1dd0ea79cb-full.jpg)](https://www.loom.com/share/b8c48935df8f4752b305e64fc3bb3845)
+
 ### Key features of Mantis include:
 
 **Infrastructure as Code (IaC)**: Mantis uses the CUE language for infrastructure descriptions, unifying Terraform modules, Kubernetes manifests, and other cloud-native tools into a single framework. It simplifies configuration management and enables reusable, version-controlled infrastructure blueprints. Mantis treats configuration as data.
