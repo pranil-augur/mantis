@@ -4,7 +4,7 @@
         {
             "label": "build_cuestack",
             "type": "shell",
-            "command": "cd /Users/pdasika/opensource/opentofu/internal/hof/flow/main; make build",            
+            "command": "cd ${workspaceFolder}/internal/hof/flow/main; make build",
             "problemMatcher": [],
         }
     ]
