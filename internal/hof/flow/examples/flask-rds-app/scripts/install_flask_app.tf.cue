@@ -44,18 +44,18 @@ deploy_flask_rds: {
             import "net"
 
             vpc_id: string @var(vpc_id)
-            az_names: [...string] @var(az_names)
+            az_names: [string] @var(az_names)
 
             subnet_configs: {
                 subnet_az1: {
                     vpc_id: vpc_id
                     cidr_block: "10.0.1.0/24"
-                    availability_zone: az_names[0]
+                    availability_zone: az_names
                 }
                 subnet_az2: {
                     vpc_id: vpc_id
                     cidr_block: "10.0.2.0/24"
-                    availability_zone: az_names[1]
+                    availability_zone: az_names
                 }
             }
 
