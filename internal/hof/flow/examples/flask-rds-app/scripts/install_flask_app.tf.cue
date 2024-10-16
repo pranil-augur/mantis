@@ -37,7 +37,7 @@ deploy_flask_rds: {
         }]
     }
 
-     evaluate: {
+     create_subnet_configs: {
         @task(mantis.core.Evaluate)
         dep: [get_default_vpc, get_availability_zones]
         exports: [{
@@ -71,8 +71,8 @@ deploy_flask_rds: {
 
     create_subnets: {
         @task(mantis.core.TF)
-        dep: [evaluate]
-        config: data: aws_subnet: _ | *null @var(subnet_configs)
+        dep: [create_subnet_configs]
+        config: resource: aws_subnet: _ | *null @var(subnet_configs)
         exports: [{
             path: ".aws_subnet.subnet_az1.id"
             var:  "subnet_az1_id"
@@ -94,7 +94,7 @@ deploy_flask_rds: {
 
     create_rds_security_group: {
         @task(mantis.core.TF)
-        dep: [get_default_vpc]
+        dep: [setup_db_subnet_group]
         config: resource: aws_security_group: rds_sg: {
             name:        "rds-security-group"
             description: "Security group for RDS instance"

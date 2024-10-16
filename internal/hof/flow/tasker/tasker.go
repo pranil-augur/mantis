@@ -11,6 +11,7 @@
 package tasker
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"sort"
@@ -121,6 +122,7 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		// Inject variables before running the task
 		// (only if we are applying)
 		if c.Apply || c.Plan {
+			printGlobalVars(c.GlobalVars)
 			injectedNode, err := injectVariables(c, bt.ID, node.Value, c.GlobalVars)
 			if err != nil {
 				return fmt.Errorf("error injecting variables: %v", err)
@@ -211,9 +213,8 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 }
 
 func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globalVars *sync.Map) (ast.Expr, error) {
-	if globalVars == nil {
-		return nil, fmt.Errorf("globalVars is nil")
-	}
+	fmt.Printf("Task ID: %s\n", taskId)
+	printGlobalVars(globalVars)
 
 	f := value.Syntax(cue.Final())
 	expr, ok := f.(ast.Expr)
@@ -235,7 +236,7 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 				if strings.HasPrefix(attr.Text, "@var") {
 					varName := parseRunInjectAttr(attr.Text)
 					if val, ok := globalVars.Load(varName); ok {
-						x.Value = createASTNodeForValue(val)
+						x.Value = createASTNodeForValue(ctx, val)
 					} else {
 						warningMessage := buildWarningMessage(varName, taskId, globalVars)
 						ctx.AddWarning(warningMessage)
@@ -243,7 +244,7 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 				} else if strings.HasPrefix(attr.Text, "@arr") {
 					varName, index := parseArrayInjectAttr(attr.Text)
 					if val, ok := globalVars.Load(varName); ok {
-						tempVal := createASTNodeForValue(val)
+						tempVal := createASTNodeForValue(ctx, val)
 						if listLit, ok := tempVal.(*ast.ListLit); ok && index < len(listLit.Elts) {
 							x.Value = listLit.Elts[index]
 						} else {
@@ -305,8 +306,21 @@ func buildWarningMessage(varName string, taskId string, globalVars *sync.Map) st
 	return warningMsg.String()
 }
 
-func createASTNodeForValue(val interface{}) ast.Expr {
+func createASTNodeForValue(ctx *flowctx.Context, val interface{}) ast.Expr {
 	switch v := val.(type) {
+	case *[]byte:
+		// Handle pointer to byte slice (assumed to be JSON-encoded CUE value)
+		if v == nil {
+			return &ast.BasicLit{Kind: token.STRING, Value: "null"}
+		}
+		var r interface{}
+		if err := json.Unmarshal(*v, &r); err != nil {
+			fmt.Printf("Error unmarshaling JSON: %v\n", err)
+			return &ast.BasicLit{Kind: token.STRING, Value: string(*v)}
+		}
+		cueVal := ctx.CueContext.Encode(r)
+		return cueVal.Syntax(cue.Final()).(ast.Expr)
+
 	case string:
 		return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(v)}
 	case int:
@@ -322,7 +336,7 @@ func createASTNodeForValue(val interface{}) ast.Expr {
 	case []interface{}:
 		elts := make([]ast.Expr, len(v))
 		for i, item := range v {
-			elts[i] = createASTNodeForValue(item)
+			elts[i] = createASTNodeForValue(ctx, item)
 		}
 		return &ast.ListLit{Elts: elts}
 	case map[string]interface{}:
@@ -330,7 +344,7 @@ func createASTNodeForValue(val interface{}) ast.Expr {
 		for key, value := range v {
 			fields = append(fields, &ast.Field{
 				Label: ast.NewString(key),
-				Value: createASTNodeForValue(value),
+				Value: createASTNodeForValue(ctx, value),
 			})
 		}
 		return &ast.StructLit{Elts: fields}
@@ -520,5 +534,38 @@ func setNestedValue(m map[string]interface{}, key string, value interface{}) {
 			}
 			current = current[part].(map[string]interface{})
 		}
+	}
+}
+
+func printGlobalVars(globalVars *sync.Map) {
+	fmt.Println("Global Variables in tasker.go:")
+	globalVars.Range(func(key, value interface{}) bool {
+		switch v := value.(type) {
+		case *[]byte:
+			printByteArray(key, v)
+		case []byte:
+			printByteArray(key, &v)
+		default:
+			fmt.Printf("%v: %v (Type: %T)\n", key, value, value)
+		}
+		return true
+	})
+}
+
+func printByteArray(key interface{}, bytePtr *[]byte) {
+	if bytePtr == nil {
+		fmt.Printf("%v: nil\n", key)
+		return
+	}
+	bytes := *bytePtr
+	fmt.Printf("%v: ", key)
+	// Try to pretty-print as JSON
+	var prettyJSON []byte
+	prettyJSON, err := json.MarshalIndent(json.RawMessage(bytes), "", "  ")
+	if err == nil {
+		fmt.Printf("JSON: %s\n", string(prettyJSON))
+	} else {
+		// If not JSON, print as string and raw bytes
+		fmt.Printf("String: %s, Bytes: %v\n", string(bytes), bytes)
 	}
 }

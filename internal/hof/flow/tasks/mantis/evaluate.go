@@ -65,6 +65,8 @@ func parseArrayInjectAttr(attrText string) (string, int) {
 
 func createASTNodeForValue(val interface{}) ast.Expr {
 	switch v := val.(type) {
+	case cue.Value:
+		return v.Syntax(cue.Final()).(ast.Expr)
 	case string:
 		return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(v)}
 	case int:
@@ -156,7 +158,7 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 		iter, _ := exports.List()
 
 		// Print all global vars
-		fmt.Println("Global Variables:")
+		fmt.Println("Global Variables in evaluate.go:")
 		ctx.GlobalVars.Range(func(key, value interface{}) bool {
 			fmt.Printf("%v: %v\n", key, value)
 			return true
@@ -206,15 +208,20 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 
 			result := newCueValue.LookupPath(cue.ParsePath("result"))
 
-			// Convert CUE value to Go value
-			var goValue interface{}
-			if err := result.Decode(&goValue); err != nil {
-				return fmt.Errorf("failed to decode CUE value to Go value: %w", err)
+			// Serialize the CUE value to JSON
+			jsonBytes, err := result.MarshalJSON()
+			if err != nil {
+				return fmt.Errorf("failed to marshal CUE value to JSON: %w", err)
 			}
 
-			fmt.Printf("Go value: %#v\n", goValue)
-			// Set the transformed value in the global vars
-			ctx.GlobalVars.Store(varName, goValue)
+			// Create a new slice and copy the data
+			persistentBytes := make([]byte, len(jsonBytes))
+			copy(persistentBytes, jsonBytes)
+
+			// Store a pointer to the persistent JSON bytes in GlobalVars
+			ctx.GlobalVars.Store(varName, &persistentBytes)
+
+			fmt.Printf("Storing pointer to serialized CUE value in GlobalVars - %s: %p\n", varName, &persistentBytes)
 		}
 		return nil
 	}()
