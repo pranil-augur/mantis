@@ -35,6 +35,34 @@ func parseRunInjectAttr(attrText string) string {
 	attrText = strings.TrimSuffix(attrText, ")")
 	return strings.Trim(attrText, "\"")
 }
+
+// @arr(var, index)
+func parseArrayInjectAttr(attrText string) (string, int) {
+	// Remove @arr( prefix and trailing )
+	attrText = strings.TrimPrefix(attrText, "@arr(")
+	attrText = strings.TrimSuffix(attrText, ")")
+
+	// Split by comma, allowing for any amount of whitespace
+	parts := strings.SplitN(attrText, ",", 2)
+	if len(parts) != 2 {
+		fmt.Printf("warning: Invalid @arr attribute format: %s\n", attrText)
+		return "", 0
+	}
+
+	// Trim whitespace and quotes from variable name
+	varName := strings.Trim(parts[0], " \t\"")
+
+	// Trim whitespace and quotes from index, then parse
+	indexStr := strings.Trim(parts[1], " \t\"")
+	index, err := strconv.Atoi(indexStr)
+	if err != nil {
+		fmt.Printf("warning: Error parsing array index: %v\n", err)
+		return "", 0
+	}
+
+	return varName, index
+}
+
 func createASTNodeForValue(val interface{}) ast.Expr {
 	switch v := val.(type) {
 	case string:
@@ -69,6 +97,7 @@ func createASTNodeForValue(val interface{}) ast.Expr {
 		return &ast.BasicLit{Kind: token.NULL, Value: ast.NewNull().Value}
 	}
 }
+
 func injectVariables(taskId string, value cue.Value, globalVars *sync.Map) (ast.Expr, error) {
 	if globalVars == nil {
 		return nil, fmt.Errorf("globalVars is nil")
@@ -94,8 +123,15 @@ func injectVariables(taskId string, value cue.Value, globalVars *sync.Map) (ast.
 				if strings.HasPrefix(attr.Text, "@var") {
 					varName := parseRunInjectAttr(attr.Text)
 					if val, ok := globalVars.Load(varName); ok {
-						// log.Printf("[DEBUG] Found var: %v = %v\n", varName, val)
 						x.Value = createASTNodeForValue(val)
+					}
+				} else if strings.HasPrefix(attr.Text, "@arr") {
+					varName, index := parseArrayInjectAttr(attr.Text)
+					if val, ok := globalVars.Load(varName); ok {
+						tempVal := createASTNodeForValue(val)
+						if listLit, ok := tempVal.(*ast.ListLit); ok && index < len(listLit.Elts) {
+							x.Value = listLit.Elts[index]
+						}
 					}
 				}
 			}
@@ -119,6 +155,13 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 		exports := v.LookupPath(cue.ParsePath("exports"))
 		iter, _ := exports.List()
 
+		// Print all global vars
+		fmt.Println("Global Variables:")
+		ctx.GlobalVars.Range(func(key, value interface{}) bool {
+			fmt.Printf("%v: %v\n", key, value)
+			return true
+		})
+
 		// Create a new CUE context
 		cueCtx := cuecontext.New()
 		for iter.Next() {
@@ -127,7 +170,7 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 				return fmt.Errorf("path 'cueexpr' not found in CUE file")
 			}
 			varVal := iter.Value().LookupPath(cue.ParsePath("var"))
-			_, err := varVal.String()
+			varName, err := varVal.String()
 			if err != nil {
 				return err
 			}
@@ -160,9 +203,18 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 				return fmt.Errorf("failed to build CUE instance: %w", err)
 			}
 			newCueValue := ctx.CueContext.BuildExpr(injectedNode)
-			fmt.Print(newCueValue.String())
+
+			result := newCueValue.LookupPath(cue.ParsePath("result"))
+
+			// Convert CUE value to Go value
+			var goValue interface{}
+			if err := result.Decode(&goValue); err != nil {
+				return fmt.Errorf("failed to decode CUE value to Go value: %w", err)
+			}
+
+			fmt.Printf("Go value: %#v\n", goValue)
 			// Set the transformed value in the global vars
-			// ctx.GlobalVars.Store(varStr, unifiedRootValue)
+			ctx.GlobalVars.Store(varName, goValue)
 		}
 		return nil
 	}()
