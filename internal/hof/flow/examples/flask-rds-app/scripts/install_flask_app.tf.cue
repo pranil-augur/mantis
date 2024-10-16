@@ -41,7 +41,7 @@ deploy_flask_rds: {
         }]
     }
 
-     evaluate: {
+    create_subnet_configs: {
         @task(mantis.core.Evaluate)
         dep: [get_default_vpc, get_availability_zones]
         exports: [{
@@ -75,13 +75,13 @@ deploy_flask_rds: {
             result: subnet_configs
             """
             var: "subnet_configs",
-            path:".subnet_configs"
+            path:"."
         }]
     }
     
     create_subnets: {
         @task(mantis.core.TF)
-        dep: [evaluate]
+        dep: [create_subnet_configs]
         config: resource: aws_subnet: _ | *null @var(subnet_configs)
         exports: [{
             path: ".aws_subnet.subnet_az1.id"
