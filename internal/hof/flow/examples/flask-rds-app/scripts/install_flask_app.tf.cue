@@ -21,6 +21,10 @@ deploy_flask_rds: {
         exports: [{
             path: ".data.aws_vpc.default.id"
             var:  "vpc_id"
+        },
+        {
+            path: ".data.aws_vpc.default.cidr_block"
+            var:  "vpc_cidr_block"
         }]
     }
 
@@ -42,17 +46,22 @@ deploy_flask_rds: {
         dep: [get_default_vpc, get_availability_zones]
         exports: [{
             cueexpr: """
+            import "mantis"
             import "net"
+            c_vpc_id:  @var(vpc_id)
+            az_names: @var(az_names)
+            vpc_cidr: @var(vpc_cidr_block)
+
             subnet_configs: {
                 subnet_az1: {
-                    vpc_id: string @var(vpc_id)
-                    cidr_block: "10.0.1.0/24"
-                    availability_zone: string @arr(az_names, 0)
+                    vpc_id: c_vpc_id
+                    cidr_block: mantis.CidrSubnet(vpc_cidr, 8, 1)
+                    availability_zone: az_names[0]
                 }
                 subnet_az2: {
-                    vpc_id: string @var(vpc_id)
-                    cidr_block: "10.0.2.0/24"
-                    availability_zone: string @arr(az_names, 1)
+                    vpc_id: c_vpc_id
+                    cidr_block: mantis.CidrSubnet(vpc_cidr, 8, 2)
+                    availability_zone: az_names[0]
                 }
             }
 
@@ -65,14 +74,15 @@ deploy_flask_rds: {
             // Output the validated subnet configurations
             result: subnet_configs
             """
-            var: "subnet_configs"
+            var: "subnet_configs",
+            path:".subnet_configs"
         }]
     }
-
+    
     create_subnets: {
         @task(mantis.core.TF)
         dep: [evaluate]
-        config: data: aws_subnet: _ | *null @var(subnet_configs)
+        config: resource: aws_subnet: _ | *null @var(subnet_configs)
         exports: [{
             path: ".aws_subnet.subnet_az1.id"
             var:  "subnet_az1_id"

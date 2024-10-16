@@ -240,19 +240,6 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 						warningMessage := buildWarningMessage(varName, taskId, globalVars)
 						ctx.AddWarning(warningMessage)
 					}
-				} else if strings.HasPrefix(attr.Text, "@arr") {
-					varName, index := parseArrayInjectAttr(attr.Text)
-					if val, ok := globalVars.Load(varName); ok {
-						tempVal := createASTNodeForValue(val)
-						if listLit, ok := tempVal.(*ast.ListLit); ok && index < len(listLit.Elts) {
-							x.Value = listLit.Elts[index]
-						} else {
-							ctx.AddWarning(fmt.Sprintf("Invalid array access for %s[%d]", varName, index))
-						}
-					} else {
-						warningMessage := buildWarningMessage(varName, taskId, globalVars)
-						ctx.AddWarning(warningMessage)
-					}
 				}
 			}
 		}
@@ -260,22 +247,6 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 	})
 
 	return injectedNode.(ast.Expr), nil
-}
-
-// @arr(var, index)
-func parseArrayInjectAttr(attrText string) (string, int) {
-	attrText = strings.TrimPrefix(attrText, "@arr(")
-	attrText = strings.TrimSuffix(attrText, ")")
-	parts := strings.Split(attrText, ",")
-	if len(parts) != 2 {
-		return "", 0
-	}
-	varName := strings.Trim(parts[0], "\"")
-	index, err := strconv.Atoi(strings.Trim(parts[1], "\""))
-	if err != nil {
-		return "", 0
-	}
-	return varName, index
 }
 
 func parseRunInjectAttr(attrText string) string {
