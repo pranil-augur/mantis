@@ -195,13 +195,6 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 		exports := v.LookupPath(cue.ParsePath("exports"))
 		iter, _ := exports.List()
 
-		// Print all global vars
-		fmt.Println("Global Variables:")
-		ctx.GlobalVars.Range(func(key, value interface{}) bool {
-			fmt.Printf("%v: %v\n", key, value)
-			return true
-		})
-
 		for iter.Next() {
 			cueExpression := iter.Value().LookupPath(cue.ParsePath("cueexpr"))
 
