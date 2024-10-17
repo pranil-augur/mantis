@@ -118,7 +118,16 @@ func (ctx *BuiltinEvalContext) UpdateHofCtxVariables(key string, vars cty.Value)
 	for i, part := range parts {
 		if i == len(parts)-1 {
 			// At the last part, assign the new value
-			nestedSyncMap := convertToSyncMap(convertCtyValueMapToGoMap(vars.AsValueMap()))
+			goMap, err := convertCtyValueMapToGoMap(vars.AsValueMap())
+			if err != nil {
+				log.Printf("[ERROR] Failed to convert value for key %s: %v", key, err)
+				return ctx.TfContext.ParsedVariables
+			}
+			nestedSyncMap, err := convertToSyncMap(goMap)
+			if err != nil {
+				log.Printf("[ERROR] Failed to convert to sync.Map for key %s: %v", key, err)
+				return ctx.TfContext.ParsedVariables
+			}
 			current.Store(part, nestedSyncMap)
 		} else {
 			var nextLevel *sync.Map
@@ -156,35 +165,7 @@ func (ctx *BuiltinEvalContext) UpdateHofCtxVariables(key string, vars cty.Value)
 	return ctx.TfContext.ParsedVariables
 }
 
-func convertCtyValueToInterface(value cty.Value) interface{} {
-	switch {
-	case value.IsNull():
-		return nil
-	case value.Type() == cty.String:
-		return value.AsString()
-	case value.Type() == cty.Number:
-		if v, accuracy := value.AsBigFloat().Float64(); accuracy == big.Exact {
-			return v
-		}
-	case value.Type() == cty.Bool:
-		return value.True()
-	case value.Type().IsMapType() || value.Type().IsObjectType():
-		return convertCtyValueMapToGoMap(value.AsValueMap())
-	case value.Type().IsListType() || value.Type().IsTupleType():
-		slice := value.AsValueSlice()
-		list := make([]interface{}, len(slice))
-		for i, v := range slice {
-			list[i] = convertCtyValueToInterface(v)
-		}
-		return list
-	default:
-		// Handle other types as needed
-		return value.GoString()
-	}
-	return nil
-}
-
-func convertCtyValueMapToGoMap(ctyMap map[string]cty.Value) map[string]interface{} {
+func convertCtyValueMapToGoMap(ctyMap map[string]cty.Value) (map[string]interface{}, error) {
 	result := make(map[string]interface{})
 
 	for key, value := range ctyMap {
@@ -196,39 +177,82 @@ func convertCtyValueMapToGoMap(ctyMap map[string]cty.Value) map[string]interface
 		case value.Type() == cty.Number:
 			if v, accuracy := value.AsBigFloat().Float64(); accuracy == big.Exact {
 				result[key] = v
+			} else {
+				return nil, fmt.Errorf("unable to convert number to float64 for key %s", key)
 			}
 		case value.Type() == cty.Bool:
 			result[key] = value.True()
 		case value.Type().IsMapType() || value.Type().IsObjectType():
-			result[key] = convertCtyValueMapToGoMap(value.AsValueMap())
+			nestedMap, err := convertCtyValueMapToGoMap(value.AsValueMap())
+			if err != nil {
+				return nil, fmt.Errorf("error in nested map for key %s: %w", key, err)
+			}
+			result[key] = nestedMap
 		case value.Type().IsListType() || value.Type().IsTupleType():
 			slice := value.AsValueSlice()
 			list := make([]interface{}, len(slice))
 			for i, v := range slice {
-				list[i] = convertCtyValueToInterface(v)
+				converted, err := convertCtyValueToInterface(v)
+				if err != nil {
+					return nil, fmt.Errorf("error in list element %d for key %s: %w", i, key, err)
+				}
+				list[i] = converted
 			}
 			result[key] = list
 		default:
-			// Handle other types as needed
-			result[key] = value.GoString()
+			return nil, fmt.Errorf("unsupported type for key %s: %s", key, value.Type().FriendlyName())
 		}
 	}
 
-	return result
+	return result, nil
 }
 
-func convertToSyncMap(input map[string]interface{}) *sync.Map {
+func convertCtyValueToInterface(value cty.Value) (interface{}, error) {
+	switch {
+	case value.IsNull():
+		return nil, nil
+	case value.Type() == cty.String:
+		return value.AsString(), nil
+	case value.Type() == cty.Number:
+		if v, accuracy := value.AsBigFloat().Float64(); accuracy == big.Exact {
+			return v, nil
+		}
+		return nil, fmt.Errorf("unable to convert number to float64")
+	case value.Type() == cty.Bool:
+		return value.True(), nil
+	case value.Type().IsMapType() || value.Type().IsObjectType():
+		return convertCtyValueMapToGoMap(value.AsValueMap())
+	case value.Type().IsListType() || value.Type().IsTupleType():
+		slice := value.AsValueSlice()
+		list := make([]interface{}, len(slice))
+		for i, v := range slice {
+			converted, err := convertCtyValueToInterface(v)
+			if err != nil {
+				return nil, fmt.Errorf("error in list element %d: %w", i, err)
+			}
+			list[i] = converted
+		}
+		return list, nil
+	default:
+		return nil, fmt.Errorf("unsupported type: %s", value.Type().FriendlyName())
+	}
+}
+
+func convertToSyncMap(input map[string]interface{}) (*sync.Map, error) {
 	newSyncMap := &sync.Map{}
 	for k, v := range input {
-		// If the value itself is a map, convert it recursively
 		switch nested := v.(type) {
 		case map[string]interface{}:
-			newSyncMap.Store(k, convertToSyncMap(nested))
+			nestedSyncMap, err := convertToSyncMap(nested)
+			if err != nil {
+				return nil, fmt.Errorf("error in nested map for key %s: %w", k, err)
+			}
+			newSyncMap.Store(k, nestedSyncMap)
 		default:
 			newSyncMap.Store(k, v)
 		}
 	}
-	return newSyncMap
+	return newSyncMap, nil
 }
 
 func (ctx *BuiltinEvalContext) Stopped() <-chan struct{} {
