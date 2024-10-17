@@ -164,7 +164,6 @@ func (ctx *BuiltinEvalContext) UpdateHofCtxVariables(key string, vars cty.Value)
 
 	return ctx.TfContext.ParsedVariables
 }
-
 func convertCtyValueMapToGoMap(ctyMap map[string]cty.Value) (map[string]interface{}, error) {
 	result := make(map[string]interface{})
 
@@ -199,6 +198,24 @@ func convertCtyValueMapToGoMap(ctyMap map[string]cty.Value) (map[string]interfac
 				list[i] = converted
 			}
 			result[key] = list
+		case value.Type().IsSetType():
+			// Handle Set type
+			setSlice := value.AsValueSet().Values()
+			setList := make([]interface{}, len(setSlice))
+			for i, v := range setSlice {
+				converted, err := convertCtyValueToInterface(v)
+				if err != nil {
+					return nil, fmt.Errorf("error in set element %d for key %s: %w", i, key, err)
+				}
+				setList[i] = converted
+			}
+			result[key] = setList
+		case value.CanIterateElements(): // If it's iterable, treat it as a map-like or list-like structure
+			convertedValue, err := convertCtyValueToInterface(value)
+			if err != nil {
+				return nil, fmt.Errorf("error converting cty.Value for key %s: %w", key, err)
+			}
+			result[key] = convertedValue
 		default:
 			return nil, fmt.Errorf("unsupported type for key %s: %s", key, value.Type().FriendlyName())
 		}
@@ -207,6 +224,7 @@ func convertCtyValueMapToGoMap(ctyMap map[string]cty.Value) (map[string]interfac
 	return result, nil
 }
 
+// Convert cty.Value to Go interface{}
 func convertCtyValueToInterface(value cty.Value) (interface{}, error) {
 	switch {
 	case value.IsNull():
@@ -216,8 +234,9 @@ func convertCtyValueToInterface(value cty.Value) (interface{}, error) {
 	case value.Type() == cty.Number:
 		if v, accuracy := value.AsBigFloat().Float64(); accuracy == big.Exact {
 			return v, nil
+		} else {
+			return nil, fmt.Errorf("unable to convert number to float64")
 		}
-		return nil, fmt.Errorf("unable to convert number to float64")
 	case value.Type() == cty.Bool:
 		return value.True(), nil
 	case value.Type().IsMapType() || value.Type().IsObjectType():
@@ -228,13 +247,25 @@ func convertCtyValueToInterface(value cty.Value) (interface{}, error) {
 		for i, v := range slice {
 			converted, err := convertCtyValueToInterface(v)
 			if err != nil {
-				return nil, fmt.Errorf("error in list element %d: %w", i, err)
+				return nil, fmt.Errorf("error converting list element %d: %w", i, err)
 			}
 			list[i] = converted
 		}
 		return list, nil
+	case value.Type().IsSetType():
+		// Handle Set type conversion
+		setSlice := value.AsValueSet().Values()
+		setList := make([]interface{}, len(setSlice))
+		for i, v := range setSlice {
+			converted, err := convertCtyValueToInterface(v)
+			if err != nil {
+				return nil, fmt.Errorf("error converting set element %d: %w", i, err)
+			}
+			setList[i] = converted
+		}
+		return setList, nil
 	default:
-		return nil, fmt.Errorf("unsupported type: %s", value.Type().FriendlyName())
+		return nil, fmt.Errorf("unsupported cty.Value type: %s", value.Type().FriendlyName())
 	}
 }
 

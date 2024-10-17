@@ -155,10 +155,11 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		// run the hof task
 		bt.AddTimeEvent("run.beg")
 		// (update)
+		fmt.Println("Running task id:", c.BaseTask.ID)
+
 		value, rerr := T.Run(c)
 		bt.AddTimeEvent("run.end")
 		if rerr != nil {
-			fmt.Println(c.BaseTask.ID)
 			return fmt.Errorf("error while running task: %v", rerr)
 		}
 		if value != nil {
@@ -237,7 +238,7 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 			for _, attr := range x.Attrs {
 				if strings.HasPrefix(attr.Text, "@var") {
 					varName := parseRunInjectAttr(attr.Text)
-					if val, ok := globalVars.Load(varName); ok {
+					if val, ok := getNestedValue(globalVars, varName); ok {
 						x.Value = createASTNodeForValue(val)
 					} else {
 						warningMessage := buildWarningMessage(varName, taskId, globalVars)
@@ -250,6 +251,41 @@ func injectVariables(ctx *flowctx.Context, taskId string, value cue.Value, globa
 	})
 
 	return injectedNode.(ast.Expr), nil
+}
+
+func getNestedValue(globalVars *sync.Map, varName string) (interface{}, bool) {
+	parts := strings.Split(varName, ".")
+
+	var currentValue interface{}
+	var ok bool
+
+	// Start by loading the top-level key
+	if currentValue, ok = globalVars.Load(parts[0]); !ok {
+		return nil, false
+	}
+
+	for i := 1; i < len(parts); i++ {
+		switch currMap := currentValue.(type) {
+		case map[string]interface{}:
+			currentValue, ok = currMap[parts[i]]
+			if !ok {
+				return nil, false
+			}
+		case map[string]string:
+			if currentValue, ok = currMap[parts[i]]; !ok {
+				return nil, false
+			}
+		case *sync.Map:
+			if currentValue, ok = currMap.Load(parts[i]); !ok {
+				return nil, false
+			}
+		default:
+			return nil, false
+		}
+	}
+
+	// Return the resolved value
+	return currentValue, true
 }
 
 func parseRunInjectAttr(attrText string) string {
