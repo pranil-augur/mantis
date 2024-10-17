@@ -157,7 +157,10 @@ func makeTask(ctx *flowctx.Context, node *hof.Node[any]) (cueflow.Runner, error)
 		// (update)
 		value, rerr := T.Run(c)
 		bt.AddTimeEvent("run.end")
-
+		if rerr != nil {
+			fmt.Println(c.BaseTask.ID)
+			return fmt.Errorf("error while running task: %v", rerr)
+		}
 		if value != nil {
 			// fmt.Println("FILL:", taskId, c.Value.Path(), t.Value(), value)
 			bt.AddTimeEvent("fill.beg")
