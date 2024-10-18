@@ -41,7 +41,7 @@ deploy_flask_rds: {
 		config: data: aws_subnets: default: {
 			filter: [{
 				name: "vpc-id"
-				values: [string] @var(vpc_id_set)
+				values: [...string] | *null @var(vpc_id_set)
 			}]
 		}
 		exports: [{
@@ -94,7 +94,7 @@ deploy_flask_rds: {
 		@task(mantis.core.TF)
 		dep: [create_subnets]
 		config: resource: aws_db_subnet_group: default: {
-			name: "flask-rds-subnet-group-1"
+			name: "flask-rds-subnet-group-2"
 			subnet_ids: [...string] | *null @var(subnet_ids)
 			tags: Name: "Flask RDS subnet group"
 		}
@@ -104,7 +104,7 @@ deploy_flask_rds: {
 		@task(mantis.core.TF)
 		dep: [setup_db_subnet_group]
 		config: resource: aws_security_group: rds_sg: {
-			name:        "rds-security-group-agr-1235"
+			name:        "rds-security-group-agr-1237"
 			description: "Security group for RDS instance"
 			vpc_id:      string | *null @var(vpc_id)
 			ingress: [{

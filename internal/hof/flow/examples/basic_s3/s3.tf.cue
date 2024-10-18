@@ -74,18 +74,6 @@ tasks: {
 		}]
 	}
 
-	local_eval: {
-		@task(mantis.core.Evaluate)
-		cueexpr: """
-		import "strings"
-		result: strings.Split(get_azs_data.exports[0].var, "-")[0]
-		"""
-		exports: [{	
-			var: "first_az"
-			jqpath: "."
-		}]
-	}
-
 	setup_s3: {
 		@task(mantis.core.TF)
 		dep: [setup_providers, get_azs_data]
@@ -93,7 +81,7 @@ tasks: {
 	}
 
 	setup_s3_1: {
-		@task(mantis.core.K8s)
+		@task(mantis.core.TF)
 		dep: [setup_s3]
 		config: #s3BucketConfig1
 	}
