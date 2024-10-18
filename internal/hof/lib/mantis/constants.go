@@ -17,8 +17,8 @@ const (
 	// ExportsExtension is the file extension for Exports language files
 	MantisVar = "var"
 
-	// MantisDataSourcePath is the default path for task outputs
-	MantisDataSourcePath = "path"
+	// MantisDataSourcePath is the jqpath from which the output is extracted
+	MantisDataSourcePath = "jqpath"
 
 	// MantisExportAs is the default alias for task outputs
 	MantisExportAs = "as"
