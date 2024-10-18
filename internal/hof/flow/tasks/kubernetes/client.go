@@ -102,7 +102,7 @@ func (c *Client) applyOrDelete(manifestYAML string, delete bool, dryRun bool, pl
 	// Get the GVR
 	mapping, err := c.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
-		return fmt.Errorf("failed to get REST mapping: %w", err)
+		return fmt.Errorf("failed to connect to kubernetes cluster: %w", err)
 	}
 
 	gvr := mapping.Resource
