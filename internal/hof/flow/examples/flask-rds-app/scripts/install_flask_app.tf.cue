@@ -19,17 +19,17 @@ deploy_flask_rds: {
 			default: true
 		}
 		exports: [{
-			path: ".data.aws_vpc.default.id"
+			jqpath: ".data.aws_vpc.default.id"
 			var:  "vpc_id"
 		}, {
-			path: ".data.aws_vpc.default.cidr_block"
+			jqpath: ".data.aws_vpc.default.cidr_block"
 			var:  "vpc_cidr_block"
 		}, {
-			path: ".data.aws_vpc.default.id"
+			jqpath: ".data.aws_vpc.default.id"
 			var:  "vpc_id_set"
 			as: [string]
         },{
-            path: ".data.aws_vpc.default.cidr_block"
+            jqpath: ".data.aws_vpc.default.cidr_block"
 			var:  "vpc_cidr_block_set"
 			as: [string]
         }]
@@ -45,25 +45,25 @@ deploy_flask_rds: {
 			}]
 		}
 		exports: [{
-			path: ".data.aws_subnets.default.ids"
+			jqpath: ".data.aws_subnets.default.ids"
 			var:  "subnet_ids"
 		}]
 	}
 
 	select_subnets: {
-		@task(mantis.core.Evaluate)
+		@task(mantis.core.Eval)
 		dep: [get_subnets]
+		cueexpr: """
+			subnet_ids: @var(subnet_ids)
+			
+			result: {
+			    subnet_az1_id: subnet_ids[0]
+			    subnet_az2_id: subnet_ids[1]
+			}
+			"""
 		exports: [{
-			cueexpr: """
-				subnet_ids: @var(subnet_ids)
-				
-				result: {
-				    subnet_az1_id: subnet_ids[0]
-				    subnet_az2_id: subnet_ids[1]
-				}
-				"""
-			var: "selected_subnets",
-            path:"."
+			var: "selected_subnets"
+			jqpath: "."
 		}]
 	}
 
@@ -79,13 +79,13 @@ deploy_flask_rds: {
 			}
 		}
 		exports: [{
-			path: ".data.aws_subnet.subnet_az1.id"
+			jqpath: ".data.aws_subnet.subnet_az1.id"
 			var:  "subnet_az1_id"
 		}, {
-			path: ".data.aws_subnet.subnet_az2.id"
+			jqpath: ".data.aws_subnet.subnet_az2.id"
 			var:  "subnet_az2_id"
 		},{
-            path: ".data.aws_subnet[].id",
+            jqpath: ".data.aws_subnet[].id",
             var:"subnet_ids"
         }]
 	}
@@ -94,7 +94,7 @@ deploy_flask_rds: {
 		@task(mantis.core.TF)
 		dep: [create_subnets]
 		config: resource: aws_db_subnet_group: default: {
-			name: "flask-rds-subnet-group"
+			name: "flask-rds-subnet-group-1"
 			subnet_ids: [...string] | *null @var(subnet_ids)
 			tags: Name: "Flask RDS subnet group"
 		}
@@ -104,7 +104,7 @@ deploy_flask_rds: {
 		@task(mantis.core.TF)
 		dep: [setup_db_subnet_group]
 		config: resource: aws_security_group: rds_sg: {
-			name:        "rds-security-group-agr-1234"
+			name:        "rds-security-group-agr-1235"
 			description: "Security group for RDS instance"
 			vpc_id:      string | *null @var(vpc_id)
 			ingress: [{
@@ -132,7 +132,7 @@ deploy_flask_rds: {
 			tags: Name: "RDS Security Group"
 		}
 		exports: [{
-			path: ".aws_security_group.rds_sg.id"
+			jqpath: ".aws_security_group.rds_sg.id"
 			var:  "rds_sg_id"
             as: [string]
 		}]
@@ -158,10 +158,10 @@ deploy_flask_rds: {
 			tags: Name: "Flask RDS Instance"
 		}
 		exports: [{
-			path: ".aws_db_instance.this.endpoint"
+			jqpath: ".aws_db_instance.this.endpoint"
 			var:  "rds_endpoint"
 		}, {
-			path: ".aws_db_instance.this.port"
+			jqpath: ".aws_db_instance.this.port"
 			var:  "rds_port"
 		}]
 	}

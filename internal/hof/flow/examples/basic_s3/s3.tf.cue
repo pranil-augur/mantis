@@ -70,15 +70,19 @@ tasks: {
 		config: #aws_availability_zones
 		exports: [{
 			var: "available_zones"
-			path:  ".data.aws_availability_zones.available.id"
+			jqpath:  ".data.aws_availability_zones.available.id"
 		}]
 	}
 
 	local_eval: {
 		@task(mantis.core.Evaluate)
+		cueexpr: """
+		import "strings"
+		result: strings.Split(get_azs_data.exports[0].var, "-")[0]
+		"""
 		exports: [{	
-			cueexpr: "strings.Split(get_azs_data.exports[0].var, \"-\")[0]"
 			var: "first_az"
+			jqpath: "."
 		}]
 	}
 

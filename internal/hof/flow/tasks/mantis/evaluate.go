@@ -45,7 +45,7 @@ func FormatValue(value interface{}) string {
 		return fmt.Sprintf("%v", v)
 	}
 }
-func PopulateTemplate(template string, vars *sync.Map) (string, error) {
+func populateTemplate(template string, vars *sync.Map) (string, error) {
 	// Define a regex pattern to match @var(id_here)
 	re := regexp.MustCompile(`@var\((\w+)\)`)
 
@@ -77,53 +77,42 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 		ctx.CUELock.Lock()
 		defer ctx.CUELock.Unlock()
 
-		exports := v.LookupPath(cue.ParsePath("exports"))
-		iter, _ := exports.List()
-
-		for iter.Next() {
-			cueExpression := iter.Value().LookupPath(cue.ParsePath("cueexpr"))
-
-			if !cueExpression.Exists() {
-				return fmt.Errorf("path 'cueexpr' not found in CUE file")
-			}
-
-			exprStr, err := cueExpression.String()
-			if err != nil {
-				return err
-			}
-
-			populatedCueExpr, err := PopulateTemplate(exprStr, ctx.GlobalVars)
-			if err != nil {
-				return fmt.Errorf("failed to update variables in CUE file: %w", err)
-			}
-			// Create a temporary CUE file with the expression and necessary imports
-			tmpFile, err := createTempCueFile(populatedCueExpr)
-			if err != nil {
-				return fmt.Errorf("failed to create temporary CUE file: %w", err)
-			}
-			defer os.Remove(tmpFile)
-
-			// Load the CUE file
-			instances := load.Instances([]string{tmpFile}, nil)
-			if len(instances) == 0 {
-				return fmt.Errorf("no instances loaded")
-			}
-
-			// Build the CUE value
-			value := ctx.CueContext.BuildInstance(instances[0])
-			if value.Err() != nil {
-				return fmt.Errorf("failed to build CUE instance: %w", value.Err())
-			}
-
-			result := value.LookupPath(cue.ParsePath("result"))
-			// fmt.Println("Result is: ")
-			// fmt.Printf(result.String())
-			v = v.FillPath(cue.ParsePath("out"), result)
-			ctx.Value = v
-			// fmt.Println("ctx updated is: ")
-			// fmt.Printf(ctx.Value.String())
-
+		cueExpression := v.LookupPath(cue.ParsePath("cueexpr"))
+		if !cueExpression.Exists() {
+			return fmt.Errorf("path 'cueexpr' not found in task")
 		}
+
+		exprStr, err := cueExpression.String()
+		if err != nil {
+			return err
+		}
+
+		populatedCueExpr, err := populateTemplate(exprStr, ctx.GlobalVars)
+		if err != nil {
+			return fmt.Errorf("failed to update variables in CUE file: %w", err)
+		}
+
+		// Create and evaluate the temporary CUE file
+		tmpFile, err := createTempCueFile(populatedCueExpr)
+		if err != nil {
+			return fmt.Errorf("failed to create temporary CUE file: %w", err)
+		}
+		defer os.Remove(tmpFile)
+
+		instances := load.Instances([]string{tmpFile}, nil)
+		if len(instances) == 0 {
+			return fmt.Errorf("no instances loaded")
+		}
+
+		value := ctx.CueContext.BuildInstance(instances[0])
+		if value.Err() != nil {
+			return fmt.Errorf("failed to build CUE instance: %w", value.Err())
+		}
+
+		// Export the entire result as the 'out' object
+		result := value.LookupPath(cue.ParsePath("result"))
+		v = v.FillPath(cue.ParsePath("out"), result)
+		ctx.Value = v
 		return nil
 	}()
 
@@ -131,7 +120,6 @@ func (T *LocalEvaluator) Run(ctx *hofcontext.Context) (interface{}, error) {
 		return nil, ferr
 	}
 
-	// Return updated CUE context with evaluated locals
 	return ctx.Value, nil
 }
 
