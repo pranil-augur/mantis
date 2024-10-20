@@ -1,5 +1,5 @@
 # Mantis 
-Mantis is an infrastructure as code (IaC) tool, forked from OpenTofu and powered by [CUE](cuelang.org), with inspiration from [Terraform](https://terraform.io/) and [Helm](https://helm.sh/). 
+Mantis is an infrastructure as code (IaC) tool, forked from OpenTofu and powered by [CUE](https://cuelang.org), with inspiration from [Terraform](https://terraform.io/) and [Helm](https://helm.sh/). 
 
 > [!IMPORTANT]
 > Note that Mantis is under active development and is not yet ready for production use.
