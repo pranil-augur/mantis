@@ -38,6 +38,9 @@ type RootPflagpole struct {
 	Apply        bool
 	Init         bool
 	Destroy      bool
+	CodeGenTask  string
+	SystemPrompt string
+	CodeDir      string
 }
 
 func SetupRootPflags(fset *pflag.FlagSet, fpole *RootPflagpole) {
@@ -60,6 +63,9 @@ func SetupRootPflags(fset *pflag.FlagSet, fpole *RootPflagpole) {
 	fset.BoolVarP(&(fpole.Plan), "plan", "P", true, "plan the changes to the state")
 	fset.BoolVarP(&(fpole.Apply), "apply", "A", true, "apply the proposed state")
 	fset.BoolVarP(&(fpole.Gist), "gist", "G", true, "gist of changes")
+	fset.StringVarP(&(fpole.CodeGenTask), "prompt", "T", "", "Codegen prompt description")
+	fset.StringVarP(&(fpole.SystemPrompt), "system-prompt", "S", "", "Location of the system prompt file")
+	fset.StringVarP(&(fpole.CodeDir), "code-dir", "C", "", "Directory of the generated code")
 }
 
 var RootPflags RootPflagpole
