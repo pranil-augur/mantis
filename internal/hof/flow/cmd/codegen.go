@@ -219,8 +219,8 @@ Generated code:
 Validation issues:
 %s
 
-Please fix the issues identified in the validation output and regenerate the code.
-`, originalPrompt, generatedCode, validationOutput)
+Please fix the issues identified in the validation output and regenerate the code. 
+Please dont include any formatting in the response, just the code.`, originalPrompt, generatedCode, validationOutput)
 }
 
 func (c *Codegen) runValidate() (string, error) {
