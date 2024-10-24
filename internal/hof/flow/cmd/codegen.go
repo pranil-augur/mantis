@@ -14,13 +14,16 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/manifoldco/promptui"
 	"github.com/opentofu/opentofu/internal/hof/lib/codegen"
 	"github.com/opentofu/opentofu/internal/hof/lib/codegen/types"
 	"github.com/opentofu/opentofu/internal/hof/lib/mantis"
+	"github.com/spf13/cobra"
 )
 
 // Codegen provides the main interface for code generation.
@@ -88,9 +91,9 @@ func (c *Codegen) Run() error {
 		if err != nil {
 			return fmt.Errorf("failed to generate code: %w", err)
 		}
-
+		filePath, err := c.writeCode(generatedCode)
 		// 3. Write generated code to file
-		if err := c.writeCode(generatedCode); err != nil {
+		if err != nil {
 			return fmt.Errorf("failed to write code: %w", err)
 		}
 
@@ -102,7 +105,37 @@ func (c *Codegen) Run() error {
 
 		// 5. Analyze validation output
 		if c.isCodeValid(validationOutput) {
+			pwd, err := os.Getwd()
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			prompt := promptui.Select{
+				Label: "Do you want me to run the code?",
+				Items: []string{"Yes", "No"},
+			}
+			_, result, err := prompt.Run()
+			if err != nil {
+				return fmt.Errorf(" Prompt failed: %v", err)
+			}
+
 			fmt.Println("Code validation successful!")
+
+			if result == "Yes" {
+
+				changeDirectoryToScripts(pwd, filePath)
+				fileName := getFileName(filePath)
+
+				if err := runInit(fileName); err != nil {
+					return fmt.Errorf("run --init failed: %w", err)
+				}
+				if err := runPlan(fileName); err != nil {
+					return fmt.Errorf("run --plan failed: %w", err)
+				}
+				if err := runApply(fileName); err != nil {
+					return fmt.Errorf("run --apply failed: %w", err)
+				}
+			}
 			return nil
 		}
 
@@ -178,7 +211,7 @@ func (c *Codegen) generateCode(ctx context.Context, chat types.Conversation, pro
 	return response.FullOutput, nil
 }
 
-func (c *Codegen) writeCode(code string) error {
+func (c *Codegen) writeCode(code string) (string, error) {
 	filename := "flow.tf.cue"
 	fullPath := filepath.Join(c.CodeDir, filename)
 
@@ -187,20 +220,20 @@ func (c *Codegen) writeCode(code string) error {
 	if c.CurrentAttempt > 1 {
 		prevAttemptPath := fmt.Sprintf("%s.attempt%d", fullPath, c.CurrentAttempt-1)
 		if err := os.Rename(fullPath, prevAttemptPath); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("failed to move previous attempt: %w", err)
+			return "", fmt.Errorf("failed to move previous attempt: %w", err)
 		}
 	}
 
 	if err := os.MkdirAll(c.CodeDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
+		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	if err := os.WriteFile(fullPath, []byte(code), 0644); err != nil {
-		return fmt.Errorf("failed to write file %s: %w", fullPath, err)
+		return "", fmt.Errorf("failed to write file %s: %w", fullPath, err)
 	}
 
 	fmt.Printf("Generated code written to: %s\n", fullPath)
-	return nil
+	return fullPath, nil
 }
 
 func (c *Codegen) isCodeValid(validationOutput string) bool {
@@ -290,4 +323,69 @@ func loadPromptFromPath(path string) (string, error) {
 		}
 		return string(content), nil
 	}
+}
+
+var runCmd = &cobra.Command{
+	Use:   "run [filename]",
+	Short: "Run a cue flow with specified flags",
+	Long:  `Run a cue flow using the specified filename with --init, --plan, or --apply flags.`,
+	Args:  cobra.ExactArgs(1),
+}
+
+func runInit(filename string) error {
+	fmt.Printf("🚀 Running mantis run --init %v\n", filename)
+	cmd := exec.Command("mantis", "run", "--init", filename)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running --init: %v\nOutput: %s", err, string(output))
+	}
+	fmt.Printf("Output of run --init:\n%s\n", string(output))
+	return nil
+}
+
+func runPlan(filename string) error {
+	fmt.Printf("📋 Running mantis run --plan %v \n", filename)
+	fmt.Println()
+	cmd := exec.Command("mantis", "run", "--plan", filename)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running --plan: %v\nOutput: %s", err, string(output))
+	}
+	fmt.Printf("Output of run --plan:\n%s\n", string(output))
+	return nil
+}
+func runApply(filename string) error {
+	fmt.Printf("💻 Running mantis run --apply %v \n", filename)
+	cmd := exec.Command("mantis", "run", "--apply", filename)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running --apply: %v\nOutput: %s", err, string(output))
+	}
+	fmt.Printf("Output of run --apply:\n%s\n", string(output))
+	return nil
+}
+
+func init() {
+	runCmd.Run = func(cmd *cobra.Command, args []string) {
+		filename := args[0]
+
+		if err := runInit(filename); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+	}
+}
+func getFileName(filePath string) string {
+	return filepath.Base(filePath)
+}
+func changeDirectoryToScripts(pwd, filePath string) error {
+	dirName := filepath.Dir(filePath)
+	dirPath := filepath.Join(pwd, dirName)
+	err := os.Chdir(dirPath)
+	if err != nil {
+		return fmt.Errorf("error changing directory: %w", err)
+	}
+
+	return nil
 }
