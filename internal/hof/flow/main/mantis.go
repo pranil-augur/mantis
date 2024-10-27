@@ -113,6 +113,35 @@ var validateCmd = &cobra.Command{
 	},
 }
 
+var queryCmd = &cobra.Command{
+	Use:   "query",
+	Short: "Query CUE files using a specified query string",
+	Long:  `Execute a query against CUE files in the specified directory using the provided query string.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		codeDir, _ := cmd.Flags().GetString("code-dir")
+		queryString, _ := cmd.Flags().GetString("query")
+		if codeDir == "" {
+			fmt.Fprintf(os.Stderr, "Error: --code-dir flag is required\n")
+			cmd.Usage()
+			os.Exit(1)
+		}
+		if queryString == "" {
+			fmt.Fprintf(os.Stderr, "Error: --query flag is required\n")
+			cmd.Usage()
+			os.Exit(1)
+		}
+		absDir, err := filepath.Abs(codeDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error resolving directory path: %v\n", err)
+			os.Exit(1)
+		}
+		if err := runner.NewQuery(absDir, queryString, flags.QueryPflags); err != nil {
+			fmt.Fprintf(os.Stderr, "Query error: %v\n", err)
+			os.Exit(1)
+		}
+	},
+}
+
 func init() {
 	// Initialize flags using the function from root.go
 	// flags.SetupRootPflags(rootCmd.PersistentFlags(), &rflags)
@@ -130,11 +159,14 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(genCmd)
 	rootCmd.AddCommand(codegenCmd)
-
-	// Add the --code-dir flag to validateCmd
-	validateCmd.Flags().StringVarP(&rflags.CodeDir, "code-dir", "C", "", "Directory to validate")
-
 	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(queryCmd)
+
+	validateCmd.Flags().StringVarP(&rflags.CodeDir, "code-dir", "C", "", "Directory to query")
+	// Add the --code-dir flag to queryCmd
+	queryCmd.Flags().StringVarP(&rflags.CodeDir, "code-dir", "C", "", "Directory to query")
+	queryCmd.Flags().BoolVarP(&flags.QueryPflags.Query, "query", "Q", false, "Enable query mode")
+	queryCmd.Flags().StringP("query", "q", "", "Query string to execute")
 }
 
 func main() {
