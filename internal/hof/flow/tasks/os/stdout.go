@@ -31,7 +31,6 @@ func (T *Stdout) Run(ctx *hofcontext.Context) (interface{}, error) {
 
 	v := ctx.Value
 	var m string
-	var err error
 
 	ferr := func() error {
 		ctx.CUELock.Lock()
@@ -43,13 +42,26 @@ func (T *Stdout) Run(ctx *hofcontext.Context) (interface{}, error) {
 		if msg.Err() != nil {
 			return msg.Err()
 		} else if msg.Exists() {
-			m, err = msg.String()
-			if err != nil {
-				return err
+			// Handle string messages
+			if str, err := msg.String(); err == nil {
+				m = str
+			} else {
+				// Handle objects/structured data
+				syntax := msg.Syntax()
+				if syntax != nil {
+					m = fmt.Sprintf("%v", syntax)
+				} else {
+					return fmt.Errorf("failed to convert value to string or object: %v", err)
+				}
 			}
 		} else {
-			err := fmt.Errorf("unknown msg:", msg)
-			return err
+			// Try to print the entire value if 'text' field doesn't exist
+			syntax := v.Syntax()
+			if syntax != nil {
+				m = fmt.Sprintf("%v", syntax)
+			} else {
+				return fmt.Errorf("no printable value found")
+			}
 		}
 		return nil
 	}()

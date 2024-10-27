@@ -14,6 +14,7 @@ import (
 	hofcontext "github.com/opentofu/opentofu/internal/hof/flow/context"
 
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/api"
+	"github.com/opentofu/opentofu/internal/hof/flow/tasks/cloudprovider"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/csp"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/cue"
 	"github.com/opentofu/opentofu/internal/hof/flow/tasks/db"
@@ -45,6 +46,7 @@ func RegisterDefaults(context *hofcontext.Context) {
 	context.Register("mantis.core.K8s", kubernetes.NewK8sTask)
 	context.Register("mantis.core.Eval", mantis.NewLocalEvaluator)
 	context.Register("mantis.core.Relay", opentf.NewRelayTask)
+	context.Register("mantis.cloudprovider.DigitalOcean", cloudprovider.NewDigitalOceanTask)
 	context.Register("hof.Template", hof.NewHofTemplate)
 
 	context.Register("kv.Mem", kv.NewMem)
