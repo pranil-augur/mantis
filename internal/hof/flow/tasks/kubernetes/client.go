@@ -29,6 +29,7 @@ type Client struct {
 	clientset *kubernetes.Clientset
 	dynamic   dynamic.Interface
 	mapper    *restmapper.DeferredDiscoveryRESTMapper
+	config    *rest.Config
 }
 
 func getConfig() (*rest.Config, error) {
@@ -74,6 +75,7 @@ func NewClient() (*Client, error) {
 		clientset: clientset,
 		dynamic:   dynamicClient,
 		mapper:    mapper,
+		config:    config,
 	}, nil
 }
 
@@ -205,4 +207,8 @@ func removeFields(obj *unstructured.Unstructured) {
 	unstructured.RemoveNestedField(obj.Object, "metadata", "uid")
 	unstructured.RemoveNestedField(obj.Object, "metadata", "generation")
 	unstructured.RemoveNestedField(obj.Object, "status")
+}
+
+func (c *Client) GetConfig() *rest.Config {
+	return c.config
 }
