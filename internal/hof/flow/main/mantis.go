@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/opentofu/opentofu/internal/hof/cmd/hof/flags"
 	runner "github.com/opentofu/opentofu/internal/hof/flow/cmd"
@@ -113,6 +114,14 @@ var validateCmd = &cobra.Command{
 	},
 }
 
+var composeCmd = &cobra.Command{
+	Use:   "compose <cue-file>",
+	Short: "Execute a composition of Mantis commands defined in a CUE file",
+	Long:  `Execute a series of Mantis commands defined in a CUE file, allowing for complex workflows and command chaining.`,
+	Args:  cobra.ExactArgs(1),
+	Run:   runCompose,
+}
+
 func init() {
 	// Initialize flags using the function from root.go
 	// flags.SetupRootPflags(rootCmd.PersistentFlags(), &rflags)
@@ -127,6 +136,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&rflags.SystemPrompt, "system-prompt", "S", "", "Location of the system prompt file")
 	rootCmd.PersistentFlags().StringVarP(&rflags.CodeDir, "code-dir", "C", "", "Directory of the generated code")
 
+	codegenCmd.Flags().String("context", "", "Additional context for code generation")
+
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(genCmd)
 	rootCmd.AddCommand(codegenCmd)
@@ -135,6 +146,7 @@ func init() {
 	validateCmd.Flags().StringVarP(&rflags.CodeDir, "code-dir", "C", "", "Directory to validate")
 
 	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(composeCmd)
 }
 
 func main() {
@@ -161,5 +173,33 @@ func runFlowFromFileOrDir(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error running flow: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func runCompose(cmd *cobra.Command, args []string) {
+	cueFile := args[0]
+
+	// Load and parse the CUE file
+	commands, err := runner.ParseComposeFile(cueFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing compose file: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Execute each command in sequence
+	for _, command := range commands {
+		fmt.Printf("Executing: mantis %s\n", command)
+
+		// Split the command into arguments
+		cmdArgs := strings.Fields(command)
+
+		// Set the arguments for the root command
+		rootCmd.SetArgs(cmdArgs)
+
+		// Execute the command
+		if err := rootCmd.Execute(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error executing command '%s': %v\n", command, err)
+			os.Exit(1)
+		}
 	}
 }

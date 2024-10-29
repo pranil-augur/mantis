@@ -28,15 +28,16 @@ import (
 
 // Codegen provides the main interface for code generation.
 type Codegen struct {
-	AIGen            *codegen.AiGen
-	SystemPrompt     string
-	SystemPromptPath string
-	UserPrompt       string
-	CodeDir          string
-	MantisParams     string
-	MaxAttempts      int
-	CurrentAttempt   int
-	Context          string
+	AIGen             *codegen.AiGen
+	SystemPrompt      string
+	SystemPromptPath  string
+	UserPrompt        string
+	CodeDir           string
+	MantisParams      string
+	MaxAttempts       int
+	CurrentAttempt    int
+	Context           string
+	AdditionalContext string
 }
 
 // New constructs a new Codegen object with the path to a configuration file.
@@ -52,13 +53,14 @@ func New(confPath, systemPromptPath, codeDir, userPrompt string) (*Codegen, erro
 	}
 
 	return &Codegen{
-		AIGen:            aigen,
-		MaxAttempts:      5, // Default value, can be customized
-		CurrentAttempt:   0,
-		SystemPrompt:     systemPrompt,
-		SystemPromptPath: systemPromptPath,
-		UserPrompt:       userPrompt,
-		CodeDir:          codeDir,
+		AIGen:             aigen,
+		MaxAttempts:       5, // Default value, can be customized
+		CurrentAttempt:    0,
+		SystemPrompt:      systemPrompt,
+		SystemPromptPath:  systemPromptPath,
+		UserPrompt:        userPrompt,
+		CodeDir:           codeDir,
+		AdditionalContext: "",
 	}, nil
 }
 
@@ -181,8 +183,8 @@ func (c *Codegen) buildContext(lastOutput string) error {
 }
 
 func (c *Codegen) generateCode(ctx context.Context, chat types.Conversation, prompt string) (string, error) {
-	combinedPrompt := fmt.Sprintf("System: %s\n\nUser: %s\n\nGiven the following context and instructions, generate the necessary code:\n\nContext:\n%s\n\nInstructions:\n%s",
-		c.SystemPrompt, prompt, c.Context, prompt)
+	combinedPrompt := fmt.Sprintf("System: %s\n\nUser: %s\n\nGiven the following context and instructions, generate the necessary code:\n\nContext:\n%s\n\nAdditional Context:\n%s\n\nInstructions:\n%s",
+		c.SystemPrompt, prompt, c.Context, c.AdditionalContext, prompt)
 
 	// Open the log file in append mode
 	logFile, err := os.OpenFile("codegen.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

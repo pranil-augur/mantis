@@ -17,7 +17,8 @@ package main
 }
 
 common: {
-    digitalocean_token: "dopxyz"
+    digitalocean_token: "awsajkdna"
+    outputfile: "outfile.txt"
 }
 
 query_digitalocean_resources: {
@@ -40,13 +41,15 @@ query_digitalocean_resources: {
             // jqpath: ".droplets[] | {name: .name, id: .id, status: .status, region: .region.slug, size: .size_slug}"
             jqpath: ".droplets[0]"
             var:  "do_droplets"
+             
         }]
     }
 
     print_resources: {
-        @task(os.Stdout)
+        @task(os.WriteFile)
         dep: [get_droplets]
-        // text: string | *null @var(do_droplets.name)
-        text: string | *null @var(do_droplets.name)
+        filename: "\(common.outputfile)"
+        contents: {...} | *null @var(do_droplets)
+        mode: 1073741824
     }
 }

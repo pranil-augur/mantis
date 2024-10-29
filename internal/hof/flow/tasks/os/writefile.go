@@ -69,7 +69,12 @@ func (T *WriteFile) Run(ctx *hofcontext.Context) (interface{}, error) {
 			if err != nil {
 				return err
 			}
-
+		case cue.StructKind:
+			jsonBytes, err := c.MarshalJSON()
+			if err != nil {
+				return err
+			}
+			bs = jsonBytes
 		default:
 			return fmt.Errorf("Unsupported content type in WriteFile task: %q", k)
 		}
