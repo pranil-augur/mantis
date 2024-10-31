@@ -45,7 +45,7 @@ func NewQuery(confPath, systemPromptPath, codeDir, userPrompt, queryConfigPath s
 		UserPrompt:      userPrompt,
 		CodeDir:         codeDir,
 		QueryConfigPath: queryConfigPath,
-		MaxResultSize:   1024,
+		MaxResultSize:   10240,
 		Timeout:         10 * time.Second,
 	}, nil
 }
