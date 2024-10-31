@@ -58,7 +58,7 @@ func New(confPath, systemPromptPath, codeDir, userPrompt string) (*Codegen, erro
 		CurrentAttempt:    0,
 		SystemPrompt:      systemPrompt,
 		SystemPromptPath:  systemPromptPath,
-		UserPrompt:        userPrompt,
+		UserPrompt:        "create an aws resource similar to given digital ocean resource",
 		CodeDir:           codeDir,
 		AdditionalContext: "",
 	}, nil
@@ -93,6 +93,16 @@ func (c *Codegen) Run() error {
 		if err != nil {
 			return fmt.Errorf("failed to generate code: %w", err)
 		}
+
+		// New step: Check provider documentation
+		enhancedCode, err := c.checkProviderDocs(ctx, chat, generatedCode)
+		if err != nil {
+			fmt.Printf("Warning: Failed to check provider documentation: %v\n", err)
+		} else {
+			fmt.Print("enhanced")
+			generatedCode = enhancedCode
+		}
+
 		filePath, err := c.writeCode(generatedCode)
 		// 3. Write generated code to file
 		if err != nil {
@@ -112,17 +122,62 @@ func (c *Codegen) Run() error {
 				fmt.Println(err)
 				os.Exit(1)
 			}
+
+			// First handle any assumed variables
+			if c.isCodeValid(generatedCode) {
+				assumedVars, err := c.analyzeAssumedVariables(ctx, chat, generatedCode)
+				if err != nil {
+					fmt.Printf("Warning: Failed to analyze assumed variables: %v\n", err)
+				} else {
+					fmt.Printf("Assumed Variables Analysis:\n%s\n", assumedVars)
+
+					// Add prompt to ask if user wants to provide values for assumptions
+					prompt := promptui.Select{
+						Label: "Do you want to provide values for assumed variables?",
+						Items: []string{"Yes", "No"},
+					}
+
+					_, result, err := prompt.Run()
+					if err != nil {
+						return fmt.Errorf("prompt failed: %v", err)
+					}
+
+					if result == "Yes" {
+						updatedCode, err := c.handleVariableAssumptions(ctx, chat, generatedCode, assumedVars)
+						if err != nil {
+							return fmt.Errorf("failed to handle variable assumptions: %w", err)
+						}
+
+						// Update the generated code and write to file
+						generatedCode = updatedCode
+						filePath, err = c.writeCode(generatedCode)
+						if err != nil {
+							return fmt.Errorf("failed to write updated code: %w", err)
+						}
+					}
+				}
+			}
+
+			// Then ask about running the code
 			prompt := promptui.Select{
 				Label: "Do you want me to run the code?",
 				Items: []string{"Yes", "No"},
+			}
+
+			fmt.Println("Code validation successful!")
+			if c.isCodeValid(generatedCode) {
+				assumedVars, err := c.analyzeAssumedVariables(ctx, chat, generatedCode)
+				if err != nil {
+					fmt.Printf("Warning: Failed to analyze assumed variables: %v\n", err)
+				} else {
+					fmt.Printf("Assumed Variables Analysis:\n%s\n", assumedVars)
+					fmt.Printf("\nAssumed Variables in Generated Code:\n%s\n", assumedVars)
+				}
 			}
 			_, result, err := prompt.Run()
 			if err != nil {
 				return fmt.Errorf(" Prompt failed: %v", err)
 			}
-
-			fmt.Println("Code validation successful!")
-
 			if result == "Yes" {
 
 				changeDirectoryToScripts(pwd, filePath)
@@ -255,6 +310,7 @@ Validation issues:
 %s
 
 Please fix the issues identified in the validation output and regenerate the code. 
+If the generated code requires specific information such as region, please include that information in your response.
 Please dont include any formatting in the response, just the code.`, originalPrompt, generatedCode, validationOutput)
 }
 
@@ -267,6 +323,75 @@ func (c *Codegen) runValidate() (string, error) {
 		output.WriteString("Validation successful!")
 	}
 	return output.String(), err
+}
+
+func (c *Codegen) analyzeAssumedVariables(ctx context.Context, chat types.Conversation, generatedCode string) (string, error) {
+	analysisPrompt := fmt.Sprintf(`
+Given the following generated code and available context, list all variables that were assumed 
+and not explicitly provided in the additional context.
+
+Generated Code:
+%s
+
+Available Additional Context:
+%s
+
+Please list only the variable names and their assumed values in a clear format.`,
+		generatedCode, c.AdditionalContext)
+
+	response, err := chat.Send(ctx, analysisPrompt)
+	if err != nil {
+		return "", fmt.Errorf("failed to analyze variables: %w", err)
+	}
+
+	return response.FullOutput, nil
+}
+
+// handleVariableAssumptions prompts the user for values of assumed variables and regenerates the code
+func (c *Codegen) handleVariableAssumptions(ctx context.Context, chat types.Conversation, generatedCode, assumedVars string) (string, error) {
+	// Create a map to store user inputs
+	userInputs := make(map[string]string)
+
+	// Split assumed variables into lines
+	lines := strings.Split(assumedVars, "\n")
+
+	// For each assumed variable, prompt the user for input
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		prompt := promptui.Prompt{
+			Label:   fmt.Sprintf("Please provide value for %s", line),
+			Default: "",
+		}
+
+		result, err := prompt.Run()
+		if err != nil {
+			return "", fmt.Errorf("prompt failed: %w", err)
+		}
+
+		userInputs[strings.TrimSpace(line)] = result
+	}
+
+	// Create a prompt to update the code with user inputs
+	updatePrompt := fmt.Sprintf(`
+Update the following code with these specific variable values:
+%v
+
+Current code:
+%s
+
+Please provide the updated code only, without any additional formatting or explanation.`,
+		userInputs, generatedCode)
+
+	// Get updated code from LLM
+	response, err := chat.Send(ctx, updatePrompt)
+	if err != nil {
+		return "", fmt.Errorf("failed to update code with variables: %w", err)
+	}
+
+	return response.FullOutput, nil
 }
 
 type Action struct {
@@ -390,4 +515,94 @@ func changeDirectoryToScripts(pwd, filePath string) error {
 	}
 
 	return nil
+}
+
+// Add this new method
+func (c *Codegen) checkProviderDocs(ctx context.Context, chat types.Conversation, code string) (string, error) {
+	// First, analyze the code to identify providers
+	providerAnalysisPrompt := fmt.Sprintf(`
+Analyze this Terraform code and list all providers being used (e.g., aws, azure, google, etc.):
+
+%s
+
+Return only the provider names, one per line.`, code)
+
+	providersResponse, err := chat.Send(ctx, providerAnalysisPrompt)
+	if err != nil {
+		return "", fmt.Errorf("failed to analyze providers: %w", err)
+	}
+
+	// Fetch documentation for each provider
+	var docsBuilder strings.Builder
+	for _, provider := range strings.Split(providersResponse.FullOutput, "\n") {
+		provider = strings.TrimSpace(provider)
+		if provider == "" {
+			continue
+		}
+
+		// Fetch provider documentation using the fetchProviderDocs method
+		providerDocs, err := c.fetchProviderDocs(provider)
+		if err != nil {
+			fmt.Printf("Warning: Failed to fetch docs for provider %s: %v\n", provider, err)
+			continue
+		}
+		docsBuilder.WriteString(fmt.Sprintf("\nProvider %s Documentation:\n%s\n", provider, providerDocs))
+	}
+
+	// Now check the code against the collected documentation
+	verificationPrompt := fmt.Sprintf(`
+Using these official Terraform provider documentations:
+
+%s
+
+Analyze and correct this Terraform code:
+
+%s
+
+Please verify and correct:
+1. Resource types and their correct names
+2. Required and optional attributes
+3. Proper attribute types and formats
+4. Any missing required fields
+
+Return only the corrected code without any additional explanation.`, docsBuilder.String(), code)
+
+	response, err := chat.Send(ctx, verificationPrompt)
+	if err != nil {
+		return "", fmt.Errorf("failed to check provider documentation: %w", err)
+	}
+
+	return response.FullOutput, nil
+}
+
+func getProviderDocsUrl(provider string) string {
+	url := fmt.Sprintf("https://registry.terraform.io/providers/hashicorp/%s/latest", provider)
+	return url
+}
+
+func (c *Codegen) fetchProviderDocs(provider string) (string, error) {
+	apiURL := getProviderDocsUrl(provider)
+
+	fmt.Printf("Doc URL for provider %v is: %v\n", provider, apiURL)
+
+	// Fetch the HTML content from the documentation URL
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch provider documentation: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to get provider documentation, status code: %d", resp.StatusCode)
+	}
+
+	// Read the HTML content
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read provider documentation response: %w", err)
+	}
+
+	// Optionally, you can parse the HTML to extract specific information
+	// For now, we will just return the raw HTML content
+	return string(body), nil
 }

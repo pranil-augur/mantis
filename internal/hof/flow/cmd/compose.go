@@ -42,13 +42,16 @@ func ParseComposeFile(filePath string) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("command %q is not a list: %v", iter.Label(), err)
 		}
-
 		// Build the command string from the array
 		var cmdParts []string
 		for cmdArray.Next() {
 			str, err := cmdArray.Value().String()
 			if err != nil {
 				return nil, fmt.Errorf("invalid command part: %v", err)
+			}
+			// If string contains spaces, wrap it in quotes
+			if strings.Contains(str, " ") {
+				str = fmt.Sprintf(`"%s"`, str)
 			}
 			cmdParts = append(cmdParts, str)
 		}
