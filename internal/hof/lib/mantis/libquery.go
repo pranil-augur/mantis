@@ -8,7 +8,6 @@
 package mantis
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,32 +19,65 @@ import (
 )
 
 type QueryConfig struct {
-	TargetFields []string          `json:"targetFields"`
-	TargetTypes  []string          `json:"targetTypes"`
-	Filters      map[string]string `json:"filters"`
+	Expressions []string       `json:"expressions"` // CUE path expressions
+	Filters     map[string]any `json:"filters"`     // Changed to 'any' to support both string and []string
 }
 
 type QueryResult struct {
-	MatchedFields map[string][]string
+	Matches map[string][]Match // key is the expression that matched
+}
+
+type Match struct {
+	Value    string  // The matched value
+	Path     string  // CUE path where match was found
+	File     string  // File where match was found
+	Type     string  // Type of the matched value
+	Children []Match // For nested matches
 }
 
 func LoadQueryConfig(path string) (QueryConfig, error) {
 	var config QueryConfig
-	file, err := os.ReadFile(path)
-	if err != nil {
-		return config, err
+
+	ctx := cuecontext.New()
+	instances := load.Instances([]string{path}, nil)
+	if len(instances) == 0 || instances[0].Err != nil {
+		return config, fmt.Errorf("failed to load CUE file: %v", instances[0].Err)
 	}
-	err = json.Unmarshal(file, &config)
-	return config, err
+
+	value := ctx.BuildInstance(instances[0])
+	if value.Err() != nil {
+		return config, fmt.Errorf("failed to build CUE instance: %v", value.Err())
+	}
+
+	// Extract expressions
+	if exprs, err := extractStringSlice(value, "expressions"); err == nil {
+		config.Expressions = exprs
+	}
+
+	// Extract filters
+	config.Filters = make(map[string]any)
+	if filters := value.LookupPath(cue.ParsePath("filters")); filters.Exists() {
+		iter, _ := filters.Fields()
+		for iter.Next() {
+			if val, err := iter.Value().String(); err == nil {
+				config.Filters[iter.Label()] = val
+			}
+		}
+	}
+
+	return config, nil
 }
 
 func QueryConfigurations(directory string, config QueryConfig) (QueryResult, error) {
-	files, err := getCueFiles(directory)
-	if err != nil {
-		return QueryResult{}, err
+	result := QueryResult{
+		Matches: make(map[string][]Match),
 	}
 
-	result := QueryResult{MatchedFields: make(map[string][]string)}
+	files, err := getCueFiles(directory)
+	if err != nil {
+		return result, err
+	}
+
 	ctx := cuecontext.New()
 
 	for _, file := range files {
@@ -59,10 +91,196 @@ func QueryConfigurations(directory string, config QueryConfig) (QueryResult, err
 			continue
 		}
 
-		searchValue(value, file, config, &result)
+		// Process each expression
+		for _, expr := range config.Expressions {
+			matches, err := evaluateExpression(value, expr, file, config.Filters)
+			if err != nil {
+				continue
+			}
+			result.Matches[expr] = append(result.Matches[expr], matches...)
+		}
 	}
 
 	return result, nil
+}
+
+func evaluateExpression(value cue.Value, expr string, file string, filters map[string]any) ([]Match, error) {
+	path := cue.ParsePath(expr)
+	if path.Err() != nil {
+		return nil, path.Err()
+	}
+
+	matches := []Match{}
+	matchedValue := value.LookupPath(path)
+	if !matchedValue.Exists() {
+		return matches, nil
+	}
+
+	// Handle different value types
+	switch matchedValue.Kind() {
+	case cue.StructKind:
+		iter, _ := matchedValue.Fields()
+		for iter.Next() {
+			if match := extractMatch(iter.Value(), iter.Label(), file, filters); match != nil {
+				matches = append(matches, *match)
+			}
+		}
+	default:
+		if match := extractMatch(matchedValue, path.String(), file, filters); match != nil {
+			matches = append(matches, *match)
+		}
+	}
+
+	return matches, nil
+}
+
+func extractMatch(value cue.Value, path string, file string, filters map[string]any) *Match {
+	// Check if value matches any of the requested types
+	valueType := getValueType(value)
+	if !isMatchingValue(value, filters) {
+		return nil
+	}
+
+	match := &Match{
+		Path: path,
+		File: file,
+		Type: valueType,
+	}
+
+	// Extract the value based on its type
+	switch value.Kind() {
+	case cue.StringKind:
+		if str, err := value.String(); err == nil {
+			match.Value = str
+		}
+	case cue.IntKind:
+		if i, err := value.Int64(); err == nil {
+			match.Value = fmt.Sprintf("%d", i)
+		}
+	case cue.FloatKind:
+		if f, err := value.Float64(); err == nil {
+			match.Value = fmt.Sprintf("%f", f)
+		}
+	case cue.StructKind:
+		match.Value = path
+		// Recursively process children
+		iter, _ := value.Fields()
+		for iter.Next() {
+			if childMatch := extractMatch(iter.Value(), iter.Label(), file, filters); childMatch != nil {
+				match.Children = append(match.Children, *childMatch)
+			}
+		}
+	}
+
+	return match
+}
+
+func FormatQueryResults(result QueryResult) string {
+	var output strings.Builder
+
+	if len(result.Matches) == 0 {
+		return "No matches found in the configurations.\n"
+	}
+
+	for expr, matches := range result.Matches {
+		fmt.Fprintf(&output, "Expression: %s\n", expr)
+		for _, match := range matches {
+			formatMatch(&output, match, 1)
+		}
+		output.WriteString("\n")
+	}
+
+	return output.String()
+}
+
+func formatMatch(output *strings.Builder, match Match, indent int) {
+	indentStr := strings.Repeat("  ", indent)
+	fmt.Fprintf(output, "%sPath: %s\n", indentStr, match.Path)
+	fmt.Fprintf(output, "%sValue: %s\n", indentStr, match.Value)
+	fmt.Fprintf(output, "%sType: %s\n", indentStr, match.Type)
+	fmt.Fprintf(output, "%sFile: %s\n", indentStr, match.File)
+
+	if len(match.Children) > 0 {
+		fmt.Fprintf(output, "%sChildren:\n", indentStr)
+		for _, child := range match.Children {
+			formatMatch(output, child, indent+1)
+		}
+	}
+}
+
+// Helper functions
+func getValueType(value cue.Value) string {
+	switch value.Kind() {
+	case cue.StructKind:
+		return "struct"
+	case cue.StringKind:
+		return "string"
+	case cue.IntKind:
+		return "int"
+	case cue.FloatKind:
+		return "float"
+	case cue.ListKind:
+		return "list"
+	default:
+		return "unknown"
+	}
+}
+
+func isMatchingValue(value cue.Value, filters map[string]any) bool {
+	// Check type filter if present
+	if typeFilter, ok := filters["type"]; ok {
+		valueType := getValueType(value)
+		switch tf := typeFilter.(type) {
+		case string:
+			if valueType != tf {
+				return false
+			}
+		case []string:
+			matched := false
+			for _, t := range tf {
+				if valueType == t {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				return false
+			}
+		}
+	}
+
+	// Check other filters
+	for key, filterValue := range filters {
+		if key == "type" {
+			continue // Already handled
+		}
+
+		// Handle nested filter paths (e.g., "env.REDIS_URL")
+		path := cue.ParsePath(key)
+		if path.Err() != nil {
+			continue
+		}
+
+		matchedValue := value.LookupPath(path)
+		if !matchedValue.Exists() {
+			return false
+		}
+
+		// Convert filter value to string for comparison
+		filterStr, ok := filterValue.(string)
+		if !ok {
+			continue
+		}
+
+		// Compare values
+		if str, err := matchedValue.String(); err == nil {
+			if str != filterStr {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func getCueFiles(directory string) ([]string, error) {
@@ -79,112 +297,24 @@ func getCueFiles(directory string) ([]string, error) {
 	return files, err
 }
 
-func searchValue(value cue.Value, file string, config QueryConfig, result *QueryResult) {
-	iter, _ := value.Fields()
+func extractStringSlice(value cue.Value, field string) ([]string, error) {
+	var result []string
+	fieldValue := value.LookupPath(cue.ParsePath(field))
+	if !fieldValue.Exists() {
+		return result, nil
+	}
+
+	iter, err := fieldValue.List()
+	if err != nil {
+		return nil, fmt.Errorf("field must be a list: %v", err)
+	}
+
 	for iter.Next() {
-		field := iter.Label()
-		fieldValue := iter.Value()
-
-		if isTargetField(field, fieldValue, config) && matchesFilters(fieldValue, config.Filters) {
-			matchedValue := getMatchedValue(fieldValue)
-			if matchedValue != "" {
-				result.MatchedFields[matchedValue] = append(result.MatchedFields[matchedValue], file)
-			}
+		str, err := iter.Value().String()
+		if err != nil {
+			return nil, fmt.Errorf("list values must be strings: %v", err)
 		}
-
-		// Recursively search nested structures
-		if fieldValue.Kind() == cue.StructKind {
-			searchValue(fieldValue, file, config, result)
-		}
+		result = append(result, str)
 	}
-}
-
-func isTargetField(field string, value cue.Value, config QueryConfig) bool {
-	// Check for specific field names
-	for _, targetField := range config.TargetFields {
-		if strings.Contains(field, targetField) {
-			return true
-		}
-	}
-
-	// Check for specific types (Terraform resources or K8s kinds)
-	for _, targetType := range config.TargetTypes {
-		// Check for Terraform-style "type" field
-		if value.LookupPath(cue.ParsePath("type")).Exists() {
-			typeValue, err := value.LookupPath(cue.ParsePath("type")).String()
-			if err == nil && typeValue == targetType {
-				return true
-			}
-		}
-		// Check for Kubernetes-style "kind" field
-		if value.LookupPath(cue.ParsePath("kind")).Exists() {
-			kindValue, err := value.LookupPath(cue.ParsePath("kind")).String()
-			if err == nil && kindValue == targetType {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-func getMatchedValue(value cue.Value) string {
-	// Try to get the "type" field (Terraform)
-	typeValue := value.LookupPath(cue.ParsePath("type"))
-	if typeValue.Exists() {
-		if typeStr, err := typeValue.String(); err == nil {
-			return typeStr
-		}
-	}
-
-	// Try to get the "kind" field (Kubernetes)
-	kindValue := value.LookupPath(cue.ParsePath("kind"))
-	if kindValue.Exists() {
-		if kindStr, err := kindValue.String(); err == nil {
-			return kindStr
-		}
-	}
-
-	// For other elements, try to get the name
-	if name, err := value.LookupPath(cue.ParsePath("name")).String(); err == nil {
-		return name
-	}
-
-	// If all else fails, return an empty string
-	return ""
-}
-
-func FormatQueryResults(result QueryResult) string {
-	var output strings.Builder
-
-	if len(result.MatchedFields) == 0 {
-		output.WriteString("No matches found in the configurations.\n")
-		return output.String()
-	}
-
-	output.WriteString("Matches found in configurations:\n")
-	for matchedValue, files := range result.MatchedFields {
-		fmt.Fprintf(&output, "Matched: %s\n", matchedValue)
-		output.WriteString("Found in files:\n")
-		for _, file := range files {
-			fmt.Fprintf(&output, "  - %s\n", file)
-		}
-		output.WriteString("\n")
-	}
-
-	return output.String()
-}
-
-func matchesFilters(value cue.Value, filters map[string]string) bool {
-	for key, expectedValue := range filters {
-		fieldValue := value.LookupPath(cue.ParsePath(key))
-		if !fieldValue.Exists() {
-			return false
-		}
-		actualValue, err := fieldValue.String()
-		if err != nil || actualValue != expectedValue {
-			return false
-		}
-	}
-	return true
+	return result, nil
 }

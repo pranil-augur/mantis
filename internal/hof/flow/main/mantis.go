@@ -118,24 +118,23 @@ var queryCmd = &cobra.Command{
 	Short: "Query CUE files using a specified query string",
 	Long:  `Execute a query against CUE files in the specified directory using the provided query string.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		systemPromptPath, _ := cmd.Flags().GetString("system-prompt")
 		codeDir, _ := cmd.Flags().GetString("code-dir")
 		queryString, _ := cmd.Flags().GetString("query")
-		if codeDir == "" {
-			fmt.Fprintf(os.Stderr, "Error: --code-dir flag is required\n")
-			cmd.Usage()
-			os.Exit(1)
+		queryConfigPath, _ := cmd.Flags().GetString("query-config")
+
+		configPath := filepath.Join(os.Getenv("HOME"), ".mantis", "config.cue")
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			configPath = ""
 		}
-		if queryString == "" {
-			fmt.Fprintf(os.Stderr, "Error: --query flag is required\n")
-			cmd.Usage()
-			os.Exit(1)
-		}
-		absDir, err := filepath.Abs(codeDir)
+
+		query, err := runner.NewQuery(configPath, systemPromptPath, codeDir, queryString, queryConfigPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error resolving directory path: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error initializing query: %v\n", err)
 			os.Exit(1)
 		}
-		if err := runner.NewQuery(absDir, queryString, flags.QueryPflags); err != nil {
+
+		if err := query.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "Query error: %v\n", err)
 			os.Exit(1)
 		}
@@ -165,8 +164,9 @@ func init() {
 	validateCmd.Flags().StringVarP(&rflags.CodeDir, "code-dir", "C", "", "Directory to query")
 	// Add the --code-dir flag to queryCmd
 	queryCmd.Flags().StringVarP(&rflags.CodeDir, "code-dir", "C", "", "Directory to query")
-	queryCmd.Flags().BoolVarP(&flags.QueryPflags.Query, "query", "Q", false, "Enable query mode")
 	queryCmd.Flags().StringP("query", "q", "", "Query string to execute")
+	queryCmd.Flags().StringP("query-config", "c", "", "Path to query configuration file")
+	queryCmd.Flags().StringP("system-prompt", "S", "", "Path to system prompt file")
 }
 
 func main() {
