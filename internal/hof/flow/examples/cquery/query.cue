@@ -1,7 +1,7 @@
 // CUE path expressions to evaluate
 expressions: [
     // Basic service queries
-    //"service",                    // Get all services
+    "service",                    // Get all services
     // "service.web",               // Get web service
     // "service.api",               // Get api service
     
@@ -17,4 +17,5 @@ expressions: [
 
 // Remove or modify filters since we don't have environment in our service.cue
 filters: {
+    name: "web-*"
 }

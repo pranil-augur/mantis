@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -226,6 +227,12 @@ func getValueType(value cue.Value) string {
 	}
 }
 
+// Add a helper function to check if a string is a regex pattern
+func isRegexPattern(s string) bool {
+	return strings.HasPrefix(s, "^") || strings.HasSuffix(s, "$") ||
+		strings.Contains(s, "*") || strings.Contains(s, ".*")
+}
+
 func isMatchingValue(value cue.Value, filters map[string]any) bool {
 	// Check type filter if present
 	if typeFilter, ok := filters["type"]; ok {
@@ -272,8 +279,23 @@ func isMatchingValue(value cue.Value, filters map[string]any) bool {
 			continue
 		}
 
-		// Compare values
-		if str, err := matchedValue.String(); err == nil {
+		// Get the actual value as string
+		str, err := matchedValue.String()
+		if err != nil {
+			continue
+		}
+
+		// Check if it's a regex pattern
+		if isRegexPattern(filterStr) {
+			re, err := regexp.Compile(filterStr)
+			if err != nil {
+				continue // Invalid regex pattern
+			}
+			if !re.MatchString(str) {
+				return false
+			}
+		} else {
+			// Exact string match
 			if str != filterStr {
 				return false
 			}
