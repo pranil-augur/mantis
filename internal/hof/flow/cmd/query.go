@@ -58,10 +58,6 @@ func (q *Query) Run() error {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	fmt.Printf("Starting query with task: %s\n", q.UserPrompt)
-	fmt.Printf("Using code directory: %s\n", q.CodeDir)
-	fmt.Printf("Using query config: %s\n", q.QueryConfigPath)
-
 	// chat, err := q.AIGen.Chat(ctx, "", "")
 	// if err != nil {
 	// 	return fmt.Errorf("failed to initialize chat: %w", err)
@@ -71,16 +67,13 @@ func (q *Query) Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to load query configuration: %w", err)
 	}
-	fmt.Printf("Loaded query config: %+v\n", queryConfig)
 
 	results, err := mantis.QueryConfigurations(q.CodeDir, queryConfig)
 	if err != nil {
 		return fmt.Errorf("failed to query configurations: %w", err)
 	}
-	// fmt.Printf("Raw query results: %+v\n", results)
 
 	formattedResults := mantis.FormatQueryResults(results)
-	fmt.Printf("Formatted results length: %d\n", len(formattedResults))
 
 	if len(formattedResults) == 0 {
 		return fmt.Errorf("no results found matching the query")
@@ -95,7 +88,6 @@ func (q *Query) Run() error {
 	// 	return fmt.Errorf("failed to generate response: %w", err)
 	// }
 
-	fmt.Println("Query response:")
 	fmt.Println(formattedResults)
 
 	return nil

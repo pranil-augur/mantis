@@ -20,8 +20,8 @@ import (
 )
 
 type QueryConfig struct {
-	Expressions []string       `json:"expressions"` // CUE path expressions
-	Filters     map[string]any `json:"filters"`     // Changed to 'any' to support both string and []string
+	Select []string       `json:"select"` // CUE path expressions for selection
+	Where  map[string]any `json:"where"`  // Predicate conditions
 }
 
 type QueryResult struct {
@@ -50,18 +50,18 @@ func LoadQueryConfig(path string) (QueryConfig, error) {
 		return config, fmt.Errorf("failed to build CUE instance: %v", value.Err())
 	}
 
-	// Extract expressions
-	if exprs, err := extractStringSlice(value, "expressions"); err == nil {
-		config.Expressions = exprs
+	// Extract select expressions
+	if selects, err := extractStringSlice(value, "select"); err == nil {
+		config.Select = selects
 	}
 
-	// Extract filters
-	config.Filters = make(map[string]any)
-	if filters := value.LookupPath(cue.ParsePath("filters")); filters.Exists() {
-		iter, _ := filters.Fields()
+	// Extract where predicates
+	config.Where = make(map[string]any)
+	if where := value.LookupPath(cue.ParsePath("where")); where.Exists() {
+		iter, _ := where.Fields()
 		for iter.Next() {
 			if val, err := iter.Value().String(); err == nil {
-				config.Filters[iter.Label()] = val
+				config.Where[iter.Label()] = val
 			}
 		}
 	}
@@ -93,8 +93,8 @@ func QueryConfigurations(directory string, config QueryConfig) (QueryResult, err
 		}
 
 		// Process each expression
-		for _, expr := range config.Expressions {
-			matches, err := evaluateExpression(value, expr, file, config.Filters)
+		for _, expr := range config.Select {
+			matches, err := evaluateExpression(value, expr, file, config.Where)
 			if err != nil {
 				continue
 			}
@@ -106,6 +106,46 @@ func QueryConfigurations(directory string, config QueryConfig) (QueryResult, err
 }
 
 func evaluateExpression(value cue.Value, expr string, file string, filters map[string]any) ([]Match, error) {
+	// Check if it's a pattern expression
+	if prefix, pattern, suffix, ok := parsePatternExpression(expr); ok {
+		// Get the root value
+		rootPath := cue.ParsePath(prefix)
+		if rootPath.Err() != nil {
+			return nil, rootPath.Err()
+		}
+
+		rootValue := value.LookupPath(rootPath)
+		if !rootValue.Exists() {
+			return nil, nil
+		}
+
+		matches := []Match{}
+
+		// Iterate over fields matching the pattern
+		iter, _ := rootValue.Fields()
+		for iter.Next() {
+			fieldValue := iter.Value()
+
+			// If there's a suffix, look it up
+			if suffix != "" {
+				fieldValue = fieldValue.LookupPath(cue.ParsePath(suffix))
+				if !fieldValue.Exists() {
+					continue
+				}
+			}
+
+			// Check if the value matches the pattern type
+			if isMatchingPatternType(fieldValue, pattern) {
+				if match := extractMatch(fieldValue, iter.Label(), file, filters); match != nil {
+					matches = append(matches, *match)
+				}
+			}
+		}
+
+		return matches, nil
+	}
+
+	// Handle non-pattern expressions (existing code)
 	path := cue.ParsePath(expr)
 	if path.Err() != nil {
 		return nil, path.Err()
@@ -117,19 +157,8 @@ func evaluateExpression(value cue.Value, expr string, file string, filters map[s
 		return matches, nil
 	}
 
-	// Handle different value types
-	switch matchedValue.Kind() {
-	case cue.StructKind:
-		iter, _ := matchedValue.Fields()
-		for iter.Next() {
-			if match := extractMatch(iter.Value(), iter.Label(), file, filters); match != nil {
-				matches = append(matches, *match)
-			}
-		}
-	default:
-		if match := extractMatch(matchedValue, path.String(), file, filters); match != nil {
-			matches = append(matches, *match)
-		}
+	if match := extractMatch(matchedValue, path.String(), file, filters); match != nil {
+		matches = append(matches, *match)
 	}
 
 	return matches, nil
@@ -234,71 +263,32 @@ func isRegexPattern(s string) bool {
 }
 
 func isMatchingValue(value cue.Value, filters map[string]any) bool {
-	// Check type filter if present
-	if typeFilter, ok := filters["type"]; ok {
-		valueType := getValueType(value)
-		switch tf := typeFilter.(type) {
-		case string:
-			if valueType != tf {
-				return false
-			}
-		case []string:
-			matched := false
-			for _, t := range tf {
-				if valueType == t {
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				return false
-			}
-		}
-	}
-
-	// Check other filters
-	for key, filterValue := range filters {
-		if key == "type" {
-			continue // Already handled
-		}
-
-		// Handle nested filter paths (e.g., "env.REDIS_URL")
-		path := cue.ParsePath(key)
-		if path.Err() != nil {
-			continue
-		}
-
-		matchedValue := value.LookupPath(path)
-		if !matchedValue.Exists() {
-			return false
-		}
-
-		// Convert filter value to string for comparison
+	for filterPath, filterValue := range filters {
 		filterStr, ok := filterValue.(string)
 		if !ok {
 			continue
 		}
 
-		// Get the actual value as string
-		str, err := matchedValue.String()
-		if err != nil {
-			continue
+		// Get the value at the filter path
+		matchedValue := value.LookupPath(cue.ParsePath(filterPath))
+		if !matchedValue.Exists() {
+			return false
 		}
 
-		// Check if it's a regex pattern
-		if isRegexPattern(filterStr) {
-			re, err := regexp.Compile(filterStr)
-			if err != nil {
-				continue // Invalid regex pattern
-			}
-			if !re.MatchString(str) {
+		// Get the actual value as string
+		valueStr, err := matchedValue.String()
+		if err != nil {
+			return false
+		}
+
+		// Try regex first, fall back to exact match
+		if re, err := regexp.Compile(filterStr); err == nil {
+			if !re.MatchString(valueStr) {
 				return false
 			}
-		} else {
-			// Exact string match
-			if str != filterStr {
-				return false
-			}
+		} else if valueStr != filterStr {
+			// If not a valid regex, do exact match
+			return false
 		}
 	}
 
@@ -339,4 +329,52 @@ func extractStringSlice(value cue.Value, field string) ([]string, error) {
 		result = append(result, str)
 	}
 	return result, nil
+}
+
+// Add helper to parse pattern expressions
+func parsePatternExpression(expr string) (prefix string, pattern string, suffix string, ok bool) {
+	// Match pattern like "service[string].name"
+	parts := strings.Split(expr, "[")
+	if len(parts) != 2 {
+		return "", "", "", false
+	}
+
+	prefix = parts[0] // "service"
+
+	// Split "]" and any suffix
+	patternParts := strings.Split(parts[1], "]")
+	if len(patternParts) != 2 {
+		return "", "", "", false
+	}
+
+	pattern = patternParts[0] // "string"
+	suffix = patternParts[1]  // ".name"
+	if strings.HasPrefix(suffix, ".") {
+		suffix = suffix[1:] // remove leading dot
+	}
+
+	return prefix, pattern, suffix, true
+}
+
+func isMatchingPatternType(value cue.Value, pattern string) bool {
+	switch pattern {
+	case "string":
+		return value.Kind() == cue.StringKind
+	case "int":
+		return value.Kind() == cue.IntKind
+	case "float":
+		return value.Kind() == cue.FloatKind
+	case "number":
+		return value.Kind() == cue.IntKind || value.Kind() == cue.FloatKind
+	case "bool":
+		return value.Kind() == cue.BoolKind
+	case "struct":
+		return value.Kind() == cue.StructKind
+	case "list":
+		return value.Kind() == cue.ListKind
+	case "_", "any":
+		return true
+	default:
+		return false
+	}
 }
