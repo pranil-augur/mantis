@@ -529,3 +529,46 @@ This demonstrates how the query language can help:
 - Ensure compliance
 
 Would you like me to elaborate on any specific aspect of change impact analysis?
+
+## Command Line Usage
+
+### Building Query Index
+The `mantis index` command builds a search index for CUE files to optimize query performance and generate sample queries.
+
+```bash
+mantis index --code-dir <path-to-cue-files> [options]
+```
+
+Options:
+- `--code-dir, -C`: Directory containing CUE configurations (required)
+- `--system-prompt, -S`: Path to system prompt file for AI-powered query generation
+- `--index-dir, -i`: Directory for storing the index (defaults to ~/.mantis/index)
+
+Example:
+```bash
+# Basic indexing
+mantis index --code-dir ./configs
+
+# Custom index location
+mantis index --code-dir ./configs --index-dir /path/to/index
+
+# With custom system prompt
+mantis index --code-dir ./configs --system-prompt ./prompts/index.txt
+```
+
+The index command:
+1. Scans the specified directory for CUE configurations
+2. Generates sample queries based on the configurations
+3. Stores the index in the specified directory (default: ~/.mantis/index/mantis-index.json)
+4. Uses AI to suggest relevant queries based on your configurations
+
+### Index Structure
+The generated index contains:
+- Sample queries for common use cases
+- Pre-computed paths for faster querying
+- Query templates for common operational scenarios
+
+This index is used by the query command to provide:
+- Query suggestions
+- Faster query execution
+- Common operational queries

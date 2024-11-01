@@ -167,12 +167,16 @@ func evaluateFromPattern(value cue.Value, prefix string, pattern string, suffix 
 
 	rootValue := value.LookupPath(rootPath)
 	if !rootValue.Exists() {
+		fmt.Printf("DEBUG: Root value does not exist for path: %s\n", prefix)
 		return nil, nil
 	}
+
+	fmt.Printf("DEBUG: Found root value of kind: %v\n", rootValue.Kind())
 
 	matches := []Match{}
 	iter, err := rootValue.Fields()
 	if err != nil {
+		fmt.Printf("DEBUG: Error getting fields: %v\n", err)
 		return nil, err
 	}
 

@@ -51,8 +51,7 @@ func NewQuery(confPath, systemPromptPath, codeDir, userPrompt, queryConfigPath s
 }
 
 func (q *Query) Run() error {
-	// ctx, cancel := context.WithTimeout(context.Background(), q.Timeout)
-	// defer cancel()
+	// ctx := context.Background()
 
 	if err := q.validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -84,11 +83,6 @@ func (q *Query) Run() error {
 	if len(formattedResults) > q.MaxResultSize {
 		return fmt.Errorf("results exceed maximum size limit of %d bytes", q.MaxResultSize)
 	}
-
-	// response, err := q.generateResponse(ctx, chat, formattedResults)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to generate response: %w", err)
-	// }
 
 	fmt.Println(formattedResults)
 

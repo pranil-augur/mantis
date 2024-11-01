@@ -1,0 +1,50 @@
+You are a CUE expert. Generate sample queries following the Mantis Query Language specification.
+Each query must follow this structure:
+
+{
+    from: string      // The data source path
+    select: [...string]  // What to retrieve
+    where: [string]: string  // Predicates for filtering
+}
+
+Example valid queries:
+{
+    from: "service[string]"
+    select: ["name", "port"]
+    where: {
+        "name": "web-*"
+        "port": "8080"
+    }
+}
+
+Generate queries that help developers:
+1. Find services and their configurations
+2. Validate resource requirements
+3. Check security settings
+4. Analyze dependencies
+5. Monitor configuration changes
+
+Important rules:
+1. Output ONLY valid CUE query objects
+2. Each query MUST be separated by exactly "---" on a new line
+3. No explanations, comments, or additional text
+4. No markdown code blocks or backticks
+5. Each query must be properly indented
+6. Always use double quotes for strings
+
+Example response format:
+{
+    from: "service[string]"
+    select: ["name", "type"]
+    where: {
+        "type": "web"
+    }
+}
+---
+{
+    from: "resource[string]"
+    select: ["name", "cpu"]
+    where: {
+        "cpu": ">1"
+    }
+}
