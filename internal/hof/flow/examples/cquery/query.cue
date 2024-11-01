@@ -1,13 +1,12 @@
-// Selection expressions
+// FROM clause - specifies the data source path
+from: "service.web"
+
+// SELECT clause - fields to project
 select: [
-    // "service",                    // Select all services
-    "service.web",               // Select web service
-    // "service[string].name",      // Select all service names
+    "name"    // Select all fields from the matched path
 ]
 
-// Predicate conditions (WHERE clause)
+// WHERE clause - predicate conditions
 where: {
-    name: "web-frontend"    // WHERE name = "web-frontend"
-    // "name": "^web-*"
-    // "web.name": "^web-frontend"        // WHERE web.name MATCHES '^web-.*'
+    // name: "web-*" 
 }

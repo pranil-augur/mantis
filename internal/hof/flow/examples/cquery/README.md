@@ -4,32 +4,36 @@ A declarative query language for CUE configurations that follows SQL-like semant
 
 ## Query Structure 
 
+```cue
 query: {
-// SELECT clause - what to retrieve
-select: [...string]
-// WHERE clause - predicates for filtering
-where: [string]: string
+    // FROM clause - specifies the data source path
+    from: string
+    // SELECT clause - what to retrieve
+    select: [...string]
+    // WHERE clause - predicates for filtering
+    where: [string]: string
 }
+```
 
 ## SELECT Expressions
 
 ### Basic Path Selection
-
-
+```cue
+from: "service"
 select: [
-    "service", // Select entire service struct
-    "service.web", // Select specific service
-    "service.web.port" // Select specific field
+    "*",                  // Select entire service struct
+    "web",               // Select specific service
+    "web.port"          // Select specific field
 ]
+```
 
 ### Pattern-Based Selection
-
 ```cue
+from: "service[string]"    // Select all service entries
 select: [
-    "service[string]",           // Select all service entries
-    "service[string].name",      // Select all service names
-    "service[struct].env",       // Select all service environments
-    "service[_].port"           // Select all ports (any type)
+    "name",               // Select all service names
+    "env",                // Select all service environments
+    "port"                // Select all ports
 ]
 ```
 
@@ -68,31 +72,47 @@ where: {
 
 ### Basic Query
 ```cue
+from: "service[string]"
 select: [
-    "service.web"
+    "name"
 ]
 where: {
-    name: "web-frontend"    // WHERE name = "web-frontend"
-}
-```
-
-### Pattern Matching
-```cue
-select: [
-    "service[string].name"
-]
-where: {
-    "web.name": "^web-.*"   // WHERE web.name MATCHES '^web-.*'
+    name: "web-*"   // Match services starting with "web-"
 }
 ```
 
 ### Deep Path Query
 ```cue
+from: "service[string]"
 select: [
-    "service[struct].env"
+    "env"
 ]
 where: {
-    "env.LOG_LEVEL": "^(info|debug)$"
+    "env.LOG_LEVEL": "^(info|debug)$"   // Match services with specific log levels
+}
+```
+
+### Multiple Field Selection
+```cue
+from: "service[string]"
+select: [
+    "name",
+    "replicas",
+    "env"
+]
+where: {
+    "replicas": "3"   // Match services with 3 replicas
+}
+```
+
+### Wildcard Selection
+```cue
+from: "service[string]"
+select: [
+    "*"    // Select all fields
+]
+where: {
+    "name": "api-*"   // Match services starting with "api-"
 }
 ```
 
@@ -161,23 +181,23 @@ where: {
 The CUE Query Language can help answer critical operational questions about your infrastructure. Here are some examples:
 
 ### Container Image Security
-Find vulnerable images:
-
-
+```cue
+from: "service[string]"
 select: [
-"service[string]",
+    "*"
 ]
 where: {
-"image": "^vulnerable-."
-// OR
-"image.tag": "^.-cve-."
+    "image": "^vulnerable-.*"
+    // OR
+    "image.tag": "^.*-cve-.*"
 }
+```
 
 ### Resource Consumption
-Find high CPU/memory consumers:
 ```cue
+from: "service[string]"
 select: [
-    "service[string]",
+    "*"
 ]
 where: {
     "resources.requests.cpu": "^[1-9][0-9]*$"     // CPU > 1
@@ -188,8 +208,9 @@ where: {
 ### Resource Configuration
 Find potential resource misconfigurations:
 ```cue
+from: "service[string]"
 select: [
-    "service[string]",
+    "resources"
 ]
 where: {
     "resources.requests.cpu": "^[0-9]*m$"         // CPU in millicores
@@ -200,8 +221,9 @@ where: {
 ### High Availability
 Check replica placement:
 ```cue
+from: "service[string]"
 select: [
-    "service[string].topology",
+    "topology"
 ]
 where: {
     "node": ".*-zone-a"                          // Check zone placement
@@ -212,8 +234,9 @@ where: {
 ### Image Tracking
 Track specific images across clusters:
 ```cue
+from: "service[string]"
 select: [
-    "service[string]",
+    "image"
 ]
 where: {
     "image.repository": "^nginx.*"
@@ -224,8 +247,10 @@ where: {
 ### Resource Management
 Track high resource consumers by namespace:
 ```cue
+from: "service[string]"
 select: [
-    "service[string]",
+    "resources",
+    "namespace"
 ]
 where: {
     "namespace": "production"
@@ -236,8 +261,9 @@ where: {
 ### Application Ownership
 Find resources by owner:
 ```cue
+from: "service[string]"
 select: [
-    "service[string]",
+    "metadata"
 ]
 where: {
     "metadata.labels.app": "frontend"
@@ -248,12 +274,13 @@ where: {
 ### Change History
 Track configuration changes:
 ```cue
+from: "service[string]"
 select: [
-    "service[string].history",
+    "history"
 ]
 where: {
-    "timestamp": "^2024-03.*"
-    "type": "ConfigChange"
+    "history.timestamp": "^2024-03.*"
+    "history.type": "ConfigChange"
 }
 ```
 
@@ -325,8 +352,9 @@ The CUE Query Language can help assess the blast radius of configuration changes
 ### Dependency Tracking
 Find all resources depending on a specific component:
 ```cue
+from: "resource[string]"
 select: [
-    "resource[string]",
+    "*"
 ]
 where: {
     "depends_on": ".*"
@@ -336,8 +364,9 @@ where: {
 ### Cross-Resource References
 Track resource references across configurations:
 ```cue
+from: "resource[string]"
 select: [
-    "resource[string].references",
+    "references"
 ]
 where: {
     "type": "SecurityGroup"
@@ -348,9 +377,10 @@ where: {
 ### Service Mesh Impact
 Analyze service mesh dependencies:
 ```cue
+from: "service[string]"
 select: [
-    "service[string].ingress",
-    "service[string].egress",
+    "ingress",
+    "egress"
 ]
 where: {
     "target.service": "payment-api"  // Find all services communicating with payment-api
@@ -359,8 +389,9 @@ where: {
 
 ### Infrastructure Dependencies
 ```cue
+from: "resource[string]"
 select: [
-    "resource[string]",
+    "*"
 ]
 where: {
     "provider": "aws"
@@ -401,8 +432,9 @@ resource: {
 1. **Direct Dependencies**
 ```cue
 // What directly depends on this component?
+from: "resource[string]"
 select: [
-    "resource[string]",
+    "*"
 ]
 where: {
     "depends_on": ".*redis-cache.*"
@@ -412,8 +444,9 @@ where: {
 2. **Network Impact**
 ```cue
 // What services might be affected by network changes?
+from: "resource[string]"
 select: [
-    "resource[string]",
+    "*"
 ]
 where: {
     "infrastructure.vpc": "vpc-123456"
@@ -424,8 +457,9 @@ where: {
 3. **Security Impact**
 ```cue
 // What resources share security groups?
+from: "resource[string]"
 select: [
-    "resource[string]",
+    "*"
 ]
 where: {
     "infrastructure.security_groups": ".*sg-123456.*"
@@ -435,8 +469,9 @@ where: {
 4. **Service Chain Impact**
 ```cue
 // Trace service chain dependencies
+from: "service[string]"
 select: [
-    "service[string].(ingress|egress)",
+    "(ingress|egress)"
 ]
 where: {
     "target.service": "payment-api"
@@ -447,8 +482,9 @@ where: {
 ### Change Risk Assessment
 ```cue
 // Find high-risk changes
+from: "resource[string]"
 select: [
-    "resource[string]",
+    "*"
 ]
 where: {
     "criticality": "high"

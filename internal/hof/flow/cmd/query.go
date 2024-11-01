@@ -73,7 +73,9 @@ func (q *Query) Run() error {
 		return fmt.Errorf("failed to query configurations: %w", err)
 	}
 
-	formattedResults := mantis.FormatQueryResults(results)
+	fmt.Println("results", results)
+
+	formattedResults := mantis.FormatQueryResults(results, queryConfig)
 
 	if len(formattedResults) == 0 {
 		return fmt.Errorf("no results found matching the query")
