@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/opentofu/opentofu/internal/hof/lib/codegen"
-	"github.com/opentofu/opentofu/internal/hof/lib/mantis"
+	cql "github.com/opentofu/opentofu/internal/hof/lib/mantis/cql"
 )
 
 type Index struct {
@@ -49,7 +49,7 @@ func (i *Index) Run() error {
 	indexPath := filepath.Join(i.CacheDir, "mantis-index.json")
 
 	fmt.Println("Building Mantis index...")
-	if err := mantis.BuildIndex(i.CodeDir, indexPath); err != nil {
+	if err := cql.BuildIndex(i.CodeDir, indexPath); err != nil {
 		return fmt.Errorf("failed to build index: %w", err)
 	}
 
@@ -61,7 +61,7 @@ func (i *Index) Run() error {
 	}
 
 	// Load existing index
-	metadata, err := mantis.LoadIndex(indexPath)
+	metadata, err := cql.LoadIndex(indexPath)
 	if err != nil {
 		return fmt.Errorf("failed to load index: %w", err)
 	}
@@ -70,7 +70,7 @@ func (i *Index) Run() error {
 	metadata.SampleQueries = queries
 
 	// Save updated index
-	if err := mantis.SaveIndex(indexPath, metadata); err != nil {
+	if err := cql.SaveIndex(indexPath, metadata); err != nil {
 		return fmt.Errorf("failed to save updated index: %w", err)
 	}
 
@@ -78,7 +78,7 @@ func (i *Index) Run() error {
 	return nil
 }
 
-func (i *Index) generateSampleQueries() ([]mantis.SampleQuery, error) {
+func (i *Index) generateSampleQueries() ([]cql.SampleQuery, error) {
 	ctx := context.Background()
 
 	chat, err := i.AIGen.Chat(ctx, "", "")
@@ -86,7 +86,7 @@ func (i *Index) generateSampleQueries() ([]mantis.SampleQuery, error) {
 		return nil, err
 	}
 
-	configs, err := mantis.LoadAllConfigurations(i.CodeDir)
+	configs, err := cql.LoadAllConfigurations(i.CodeDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load configurations: %w", err)
 	}
@@ -104,7 +104,7 @@ Analyze these CUE configurations and generate a list of important questions user
 
 	fmt.Println(response.FullOutput)
 
-	return mantis.ParseSampleQueries(response.FullOutput)
+	return cql.ParseSampleQueries(response.FullOutput)
 }
 
 func printIndex(indexPath string) error {

@@ -5,7 +5,7 @@
  * This file is licensed under the Augur AI Proprietary License.
  */
 
-package mantis
+package cql
 
 import (
 	"encoding/json"
@@ -17,6 +17,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	types "github.com/opentofu/opentofu/internal/hof/lib/mantis/cql/shared"
 )
 
 type SchemaIndex struct {
@@ -59,9 +60,9 @@ type StringFieldInfo struct {
 }
 
 type SampleQuery struct {
-	NaturalLanguage string      `json:"natural_language"` // The question in natural language
-	MantisQuery     QueryConfig `json:"mantis_query"`     // The corresponding Mantis query
-	Description     string      `json:"description"`      // Why this query is useful
+	NaturalLanguage string            `json:"natural_language"` // The question in natural language
+	MantisQuery     types.QueryConfig `json:"mantis_query"`     // The corresponding Mantis query
+	Description     string            `json:"description"`      // Why this query is useful
 }
 
 // BuildIndex analyzes configurations and generates sample queries
@@ -198,7 +199,7 @@ func ParseSampleQueries(response string) ([]SampleQuery, error) {
 			continue
 		}
 
-		var queryConfig QueryConfig
+		var queryConfig types.QueryConfig
 		if err := json.Unmarshal(jsonBytes, &queryConfig); err != nil {
 			fmt.Printf("Error parsing JSON: %v\n", err)
 			continue

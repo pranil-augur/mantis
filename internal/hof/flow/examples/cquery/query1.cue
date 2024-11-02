@@ -1,7 +1,9 @@
-from : "service.frontend"
+from : "service[string]"
 select: [
-    "*"
+    "name",
+    //"dependencies"
 ]
 where: {
-    // "frontend.dependencies": "^database$"  // Match services with 'database' as a dependency
+    // To match services with 'database' as a dependency, you could use:
+    "name": ["frontend"]  // Using the =~ operator for regex matching
 }

@@ -16,7 +16,8 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/opentofu/opentofu/internal/hof/lib/codegen"
-	"github.com/opentofu/opentofu/internal/hof/lib/mantis"
+	cql "github.com/opentofu/opentofu/internal/hof/lib/mantis/cql"
+	types "github.com/opentofu/opentofu/internal/hof/lib/mantis/cql/shared"
 )
 
 type Query struct {
@@ -58,7 +59,7 @@ func (q *Query) Run() error {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	var queryConfig *mantis.QueryConfig
+	var queryConfig *types.QueryConfig
 	var err error
 
 	// Handle natural language query if provided
@@ -69,8 +70,8 @@ func (q *Query) Run() error {
 		}
 	} else {
 		// Load query from config file
-		var config mantis.QueryConfig
-		config, err = mantis.LoadQueryConfig(q.QueryConfigPath)
+		var config types.QueryConfig
+		config, err = cql.LoadQueryConfig(q.QueryConfigPath)
 		if err != nil {
 			return fmt.Errorf("failed to load query configuration: %w", err)
 		}
@@ -79,12 +80,12 @@ func (q *Query) Run() error {
 
 	fmt.Printf("=== Query Config ===\n%v\n==================\n", *queryConfig)
 
-	results, err := mantis.QueryConfigurations(q.CodeDir, *queryConfig)
+	results, err := cql.QueryConfigurations(q.CodeDir, *queryConfig)
 	if err != nil {
 		return fmt.Errorf("failed to query configurations: %w", err)
 	}
 
-	formattedResults := mantis.FormatQueryResults(results, *queryConfig)
+	formattedResults := cql.FormatQueryResults(results, *queryConfig)
 	if len(formattedResults) == 0 {
 		return fmt.Errorf("no results found matching the query")
 	}
@@ -97,9 +98,9 @@ func (q *Query) Run() error {
 	return nil
 }
 
-func (q *Query) convertNaturalLanguageToQuery() (*mantis.QueryConfig, error) {
+func (q *Query) convertNaturalLanguageToQuery() (*types.QueryConfig, error) {
 	// Load the index using the existing function
-	metadata, err := mantis.LoadIndex(q.IndexPath)
+	metadata, err := cql.LoadIndex(q.IndexPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load index: %w", err)
 	}
@@ -148,7 +149,7 @@ Please select and adapt the most relevant query to match the user's intent.`,
 
 	fmt.Printf("=== JSON Output ===\n%s\n=================\n", string(jsonBytes))
 
-	var queryConfig mantis.QueryConfig
+	var queryConfig types.QueryConfig
 	if err := json.Unmarshal(jsonBytes, &queryConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse query config: %w", err)
 	}
