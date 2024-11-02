@@ -10,6 +10,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -45,17 +46,35 @@ func NewIndex(confPath, systemPromptPath, codeDir, cacheDir string) (*Index, err
 }
 
 func (i *Index) Run() error {
+	indexPath := filepath.Join(i.CacheDir, "mantis-index.json")
+
+	fmt.Println("Building Mantis index...")
+	if err := mantis.BuildIndex(i.CodeDir, indexPath); err != nil {
+		return fmt.Errorf("failed to build index: %w", err)
+	}
+
+	// printIndex(indexPath)
+	// Generate sample queries
 	queries, err := i.generateSampleQueries()
 	if err != nil {
 		return fmt.Errorf("failed to generate sample queries: %w", err)
 	}
 
-	indexPath := filepath.Join(i.CacheDir, "mantis-index.json")
-	if err := mantis.SaveQueries(indexPath, queries); err != nil {
-		return fmt.Errorf("failed to save queries: %w", err)
+	// Load existing index
+	metadata, err := mantis.LoadIndex(indexPath)
+	if err != nil {
+		return fmt.Errorf("failed to load index: %w", err)
 	}
 
-	fmt.Printf("Successfully indexed new queries to %s\n", indexPath)
+	// Update index with sample queries
+	metadata.SampleQueries = queries
+
+	// Save updated index
+	if err := mantis.SaveIndex(indexPath, metadata); err != nil {
+		return fmt.Errorf("failed to save updated index: %w", err)
+	}
+
+	fmt.Printf("Successfully updated index with queries at %s\n", indexPath)
 	return nil
 }
 
@@ -86,4 +105,13 @@ Analyze these CUE configurations and generate a list of important questions user
 	fmt.Println(response.FullOutput)
 
 	return mantis.ParseSampleQueries(response.FullOutput)
+}
+
+func printIndex(indexPath string) error {
+	data, err := os.ReadFile(indexPath)
+	if err != nil {
+		return fmt.Errorf("failed to read index file: %w", err)
+	}
+	fmt.Println(string(data))
+	return nil
 }

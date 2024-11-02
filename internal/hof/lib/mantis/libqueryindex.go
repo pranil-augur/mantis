@@ -8,21 +8,54 @@
 package mantis
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/opentofu/opentofu/internal/hof/lib/codegen"
 )
+
+type SchemaIndex struct {
+	Fields map[string]string `json:"fields"` // Maps field paths to their types
+}
 
 type IndexMetadata struct {
 	SampleQueries []SampleQuery `json:"sample_queries"`
-	ConfigPaths   []string      `json:"config_paths"` // List of all configuration paths
-	Types         []string      `json:"types"`        // List of discovered types (service, resource, etc)
+	ConfigPaths   []string      `json:"config_paths"`
+	Types         []string      `json:"types"`
+	Values        ValueIndex    `json:"values"`
+	Schema        SchemaIndex   `json:"schema"`
+}
+
+type ValueIndex struct {
+	NumericFields  map[string]NumericFieldInfo `json:"numeric_fields"`
+	StringFields   map[string]StringFieldInfo  `json:"string_fields"`
+	ComputedValues map[string]float64          `json:"computed_values"`
+	Aggregations   map[string]interface{}      `json:"aggregations"`
+}
+
+type NumericFieldInfo struct {
+	PathPattern string             `json:"path_pattern"`
+	Type        string             `json:"type"`
+	Occurrences map[string]float64 `json:"occurrences"`
+	Stats       NumericStats       `json:"stats"`
+}
+
+type NumericStats struct {
+	Min     float64 `json:"min"`
+	Max     float64 `json:"max"`
+	Total   float64 `json:"total"`
+	Average float64 `json:"average"`
+}
+
+type StringFieldInfo struct {
+	PathPattern  string         `json:"path_pattern"`
+	UniqueValues []string       `json:"unique_values"`
+	Occurrences  map[string]int `json:"occurrences"`
 }
 
 type SampleQuery struct {
@@ -32,78 +65,81 @@ type SampleQuery struct {
 }
 
 // BuildIndex analyzes configurations and generates sample queries
-func BuildIndex(directory string, aiGen *codegen.AiGen) error {
-	// Load all configurations
-	configs, err := LoadAllConfigurations(directory)
-	if err != nil {
-		return fmt.Errorf("failed to load configurations: %w", err)
+func BuildIndex(directory string, indexPath string) error {
+	fmt.Printf("Schema: Starting build index for directory %s\n", directory)
+
+	// Initialize indexes
+	schemaIndex := SchemaIndex{
+		Fields: make(map[string]string),
+	}
+	valueIndex := ValueIndex{
+		NumericFields:  make(map[string]NumericFieldInfo),
+		StringFields:   make(map[string]StringFieldInfo),
+		ComputedValues: make(map[string]float64),
+		Aggregations:   make(map[string]interface{}),
 	}
 
-	// Generate sample queries using AI
-	queries, err := generateSampleQueries(configs, aiGen)
+	// Load CUE files directly
+	files, err := filepath.Glob(filepath.Join(directory, "*.cue"))
 	if err != nil {
-		return fmt.Errorf("failed to generate sample queries: %w", err)
+		return fmt.Errorf("failed to find CUE files: %w", err)
 	}
 
-	// Create index metadata
+	ctx := cuecontext.New()
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			fmt.Printf("DEBUG: Error reading file %s: %v\n", file, err)
+			continue
+		}
+
+		value := ctx.CompileString(string(data))
+		if value.Err() != nil {
+			fmt.Printf("DEBUG: Error compiling CUE from %s: %v\n", file, value.Err())
+			continue
+		}
+
+		if err := walkAndCollectSchema(value, "", &schemaIndex); err != nil {
+			fmt.Printf("DEBUG: Error collecting schema: %v\n", err)
+			return err
+		}
+		if err := walkAndCollectValues(value, "", &valueIndex); err != nil {
+			fmt.Printf("DEBUG: Error collecting values: %v\n", err)
+			return err
+		}
+	}
+
+	// fmt.Printf("DEBUG: Final schema fields: %+v\n", schemaIndex.Fields)
+	// fmt.Printf("DEBUG: Final value fields: %+v\n", valueIndex)
+
+	// Create and save the index
 	metadata := IndexMetadata{
-		SampleQueries: queries,
-		ConfigPaths:   extractConfigPaths(configs),
-		Types:         extractConfigTypes(configs),
+		ConfigPaths: []string{directory},
+		Types:       []string{},
+		Values:      valueIndex,
+		Schema:      schemaIndex,
 	}
 
-	// Save the index
-	indexPath := filepath.Join(directory, ".mantis-index.json")
-	indexData, err := json.MarshalIndent(metadata, "", "  ")
+	// Save to index file
+	if err := SaveIndex(indexPath, metadata); err != nil {
+		return fmt.Errorf("failed to save index: %w", err)
+	}
+
+	return nil
+}
+
+// Add this new function
+func SaveIndex(path string, metadata IndexMetadata) error {
+	data, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal index: %w", err)
 	}
 
-	return os.WriteFile(indexPath, indexData, 0644)
-}
-
-func generateSampleQueries(configs string, aiGen *codegen.AiGen) ([]SampleQuery, error) {
-	ctx := context.Background()
-
-	// Initialize chat with system prompt
-	chat, err := aiGen.Chat(ctx, `You are a CUE configuration analyzer. Given a set of CUE configurations:
-1. Identify important questions users might ask about these configurations
-2. Generate corresponding Mantis Query Language queries to answer these questions
-3. Focus on operational, security, and dependency-related questions`, "")
-
-	if err != nil {
-		return nil, err
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write index file: %w", err)
 	}
 
-	// Ask AI to analyze configs and generate questions
-	prompt := fmt.Sprintf(`Analyze these CUE configurations and generate a list of important questions users might ask:
-
-%s
-
-For each question:
-1. Write it in natural language
-2. Provide a Mantis Query Language query to answer it
-3. Explain why this question is important
-
-Use the query format from the Mantis Query Language specification:
-query: {
-    from: string      // Path-based data source
-    select: [...string] // Fields to retrieve
-    where: [string]: string // Filtering conditions
-}`, configs)
-
-	response, err := chat.Send(ctx, prompt)
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse the response into sample queries
-	queries, err := ParseSampleQueries(response.FullOutput)
-	if err != nil {
-		return nil, err
-	}
-
-	return queries, nil
+	return nil
 }
 
 // ParseSampleQueries converts an AI-generated response into structured SampleQuery objects.
@@ -253,4 +289,133 @@ func SaveQueries(path string, queries []SampleQuery) error {
 		return fmt.Errorf("failed to marshal queries: %w", err)
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+func walkAndCollectValues(v cue.Value, path string, index *ValueIndex) error {
+	switch v.Kind() {
+	case cue.IntKind, cue.FloatKind:
+		var num float64
+		if err := v.Decode(&num); err == nil {
+			updateNumericStats(path, num, index)
+		}
+
+	case cue.StringKind:
+		var str string
+		if err := v.Decode(&str); err == nil {
+			updateStringStats(path, str, index)
+		}
+
+	case cue.StructKind:
+		iter, _ := v.Fields()
+		for iter.Next() {
+			newPath := path
+			if newPath == "" {
+				newPath = iter.Label()
+			} else {
+				newPath = newPath + "." + iter.Label()
+			}
+			if err := walkAndCollectValues(iter.Value(), newPath, index); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func updateNumericStats(path string, value float64, index *ValueIndex) {
+	info := index.NumericFields[path]
+	if info.Occurrences == nil {
+		info.Occurrences = make(map[string]float64)
+		info.Type = "number"
+		info.PathPattern = path
+	}
+
+	info.Occurrences[path] = value
+	info.Stats.Total += value
+	info.Stats.Min = math.Min(info.Stats.Min, value)
+	info.Stats.Max = math.Max(info.Stats.Max, value)
+
+	count := float64(len(info.Occurrences))
+	info.Stats.Average = info.Stats.Total / count
+
+	index.NumericFields[path] = info
+
+	// Update computed values for specific fields
+	if strings.HasSuffix(path, ".replicas") {
+		index.ComputedValues["total_replicas"] = info.Stats.Total
+		index.ComputedValues["average_replicas"] = info.Stats.Average
+	}
+}
+
+func updateStringStats(path string, value string, index *ValueIndex) {
+	info := index.StringFields[path]
+	if info.Occurrences == nil {
+		info.Occurrences = make(map[string]int)
+		info.PathPattern = path
+	}
+
+	info.Occurrences[value]++
+	if !contains(info.UniqueValues, value) {
+		info.UniqueValues = append(info.UniqueValues, value)
+	}
+
+	index.StringFields[path] = info
+}
+
+func contains(slice []string, str string) bool {
+	for _, v := range slice {
+		if v == str {
+			return true
+		}
+	}
+	return false
+}
+
+func walkAndCollectSchema(v cue.Value, path string, schema *SchemaIndex) error {
+	if path != "" {
+		schema.Fields[path] = v.Kind().String()
+	}
+
+	switch v.Kind() {
+	case cue.StructKind:
+		iter, _ := v.Fields()
+		for iter.Next() {
+			newPath := path
+			if newPath == "" {
+				newPath = iter.Label()
+			} else {
+				newPath = newPath + "." + iter.Label()
+			}
+			if err := walkAndCollectSchema(iter.Value(), newPath, schema); err != nil {
+				return err
+			}
+		}
+	case cue.ListKind:
+		iter, err := v.List()
+		if err != nil {
+			return err
+		}
+		for iter.Next() {
+			if err := walkAndCollectSchema(iter.Value(), path, schema); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func LoadIndex(path string) (IndexMetadata, error) {
+	var metadata IndexMetadata
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return metadata, fmt.Errorf("failed to read index file: %w", err)
+	}
+
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		return metadata, fmt.Errorf("failed to unmarshal index: %w", err)
+	}
+
+	return metadata, nil
 }

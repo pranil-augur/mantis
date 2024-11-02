@@ -98,24 +98,31 @@ func (q *Query) Run() error {
 }
 
 func (q *Query) convertNaturalLanguageToQuery() (*mantis.QueryConfig, error) {
-	// Load the index file
-	indexData, err := os.ReadFile(q.IndexPath)
+	// Load the index using the existing function
+	metadata, err := mantis.LoadIndex(q.IndexPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read index file: %w", err)
-	}
-
-	var sampleQueries []mantis.SampleQuery
-	if err := json.Unmarshal(indexData, &sampleQueries); err != nil {
-		return nil, fmt.Errorf("failed to parse index file: %w", err)
+		return nil, fmt.Errorf("failed to load index: %w", err)
 	}
 
 	// Use AI to find the most relevant query from the index
 	ctx := context.Background()
 
-	combinedPrompt := fmt.Sprintf("System: %s\n\nUser: %s\n\nGiven these sample queries:\n%s\n\nPlease select and adapt the most relevant query to match the user's intent.",
+	// Create a more informative prompt with schema and sample queries
+	combinedPrompt := fmt.Sprintf(`System: %s
+
+User: %s
+
+Available Schema:
+%+v
+
+Sample Queries:
+%+v
+
+Please select and adapt the most relevant query to match the user's intent.`,
 		q.SystemPrompt,
 		q.UserPrompt,
-		string(indexData))
+		metadata.Schema,
+		metadata.SampleQueries)
 
 	chat, err := q.AIGen.Chat(ctx, "", "")
 	if err != nil {
