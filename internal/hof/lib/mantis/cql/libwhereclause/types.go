@@ -19,7 +19,7 @@ type LogicalEvaluator struct {
 type ComparisonEvaluator struct {
 	Path     string
 	Operator string // "=", "!=", "=~", "in", "contains"
-	Expected any
+	Expected cue.Value
 }
 
 // ListEvaluator handles array operations

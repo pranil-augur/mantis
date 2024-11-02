@@ -4,6 +4,12 @@ import (
 	"cuelang.org/go/cue"
 )
 
+// Evaluate checks if the target value matches the where conditions
+func Evaluate(whereValue, targetValue cue.Value) bool {
+	evaluator := CreateEvaluator(whereValue)
+	return evaluator.Evaluate(targetValue)
+}
+
 func (l *LogicalEvaluator) Evaluate(value cue.Value) bool {
 	switch l.Op {
 	case OpAnd:

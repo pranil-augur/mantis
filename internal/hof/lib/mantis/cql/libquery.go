@@ -50,11 +50,42 @@ func LoadQueryConfig(path string) (types.QueryConfig, error) {
 	// Extract WHERE predicates
 	config.Where = make(map[string]any)
 	if where := value.LookupPath(cue.ParsePath("where")); where.Exists() {
-		iter, _ := where.Fields()
+		fmt.Printf("WHERE clause exists: %v\n", where)
+
+		iter, err := where.Fields()
+		if err != nil {
+			fmt.Printf("Error getting fields: %v\n", err)
+			return config, fmt.Errorf("failed to get where clause fields: %v", err)
+		}
+
+		var rawWhere interface{}
+		if err := where.Decode(&rawWhere); err == nil {
+			fmt.Printf("Raw WHERE value: %+v\n", rawWhere)
+		}
+
 		for iter.Next() {
-			if val, err := iter.Value().String(); err == nil {
-				config.Where[iter.Label()] = val
+			fmt.Printf("Processing field: %s\n", iter.Label())
+			// Try to get the value in its native form instead of forcing string conversion
+			val := iter.Value()
+			if val.Exists() {
+				// For debugging
+				fmt.Printf("WHERE clause key: %s, value: %v\n", iter.Label(), val)
+
+				// Try to decode the value into a generic interface{}
+				var decoded interface{}
+				if err := val.Decode(&decoded); err == nil {
+					config.Where[iter.Label()] = decoded
+				} else {
+					// Fallback to string if decode fails
+					if str, err := val.String(); err == nil {
+						config.Where[iter.Label()] = str
+					}
+				}
 			}
+		}
+
+		if err := where.Decode(&config.Where); err != nil {
+			fmt.Printf("Failed to decode WHERE directly: %v\n", err)
 		}
 	}
 
