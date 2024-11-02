@@ -20,9 +20,9 @@ import (
 )
 
 type QueryConfig struct {
-	From   string         `json:"from"`   // Data source path
-	Select []string       `json:"select"` // Fields to project
-	Where  map[string]any `json:"where"`  // Predicate conditions
+	From   string         `json:"from"`             // Data source path
+	Select []string       `json:"select,omitempty"` // Fields to project
+	Where  map[string]any `json:"where,omitempty"`  // Predicate conditions
 }
 
 type QueryResult struct {

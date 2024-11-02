@@ -115,20 +115,41 @@ var validateCmd = &cobra.Command{
 
 var queryCmd = &cobra.Command{
 	Use:   "query",
-	Short: "Query CUE files using a specified query string",
-	Long:  `Execute a query against CUE files in the specified directory using the provided query string.`,
+	Short: "Query CUE files using natural language or query config",
+	Long: `Execute a query against CUE files using either:
+1. Natural language query with an index file (-q "find services exposed to internet" -i index.json)
+2. Direct query configuration file (-c query.cue)`,
 	Run: func(cmd *cobra.Command, args []string) {
 		systemPromptPath, _ := cmd.Flags().GetString("system-prompt")
 		codeDir, _ := cmd.Flags().GetString("code-dir")
 		queryString, _ := cmd.Flags().GetString("query")
 		queryConfigPath, _ := cmd.Flags().GetString("query-config")
+		indexPath, _ := cmd.Flags().GetString("index")
+
+		if queryString != "" {
+			if indexPath == "" {
+				fmt.Fprintf(os.Stderr, "Error: --index is required when using natural language query\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
+		} else if queryConfigPath != "" {
+			if indexPath != "" {
+				fmt.Fprintf(os.Stderr, "Error: --index should only be used with natural language queries\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: either --query or --query-config is required\n")
+			cmd.Usage()
+			os.Exit(1)
+		}
 
 		configPath := filepath.Join(os.Getenv("HOME"), ".mantis", "config.cue")
 		if _, err := os.Stat(configPath); os.IsNotExist(err) {
 			configPath = ""
 		}
 
-		query, err := runner.NewQuery(configPath, systemPromptPath, codeDir, queryString, queryConfigPath)
+		query, err := runner.NewQuery(configPath, systemPromptPath, codeDir, queryString, queryConfigPath, indexPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing query: %v\n", err)
 			os.Exit(1)
@@ -211,10 +232,10 @@ func init() {
 	validateCmd.Flags().StringP("code-dir", "C", "", "Directory to query")
 	// Add the --code-dir flag to queryCmd
 	queryCmd.Flags().StringP("code-dir", "C", "", "Directory to query")
-	queryCmd.Flags().StringP("query", "q", "", "Query string to execute")
+	queryCmd.Flags().StringP("query", "q", "", "Natural language query string")
 	queryCmd.Flags().StringP("query-config", "c", "", "Path to query configuration file")
 	queryCmd.Flags().StringP("system-prompt", "S", "", "Path to system prompt file")
-	queryCmd.Flags().BoolP("build-index", "i", false, "Build a query index for the specified directory")
+	queryCmd.Flags().StringP("index", "i", "", "Path to index file for natural language queries")
 
 	indexCmd.Flags().StringP("code-dir", "C", "", "Directory to index")
 	indexCmd.Flags().StringP("system-prompt", "S", "", "Path to system prompt file")

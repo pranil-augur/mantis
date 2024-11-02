@@ -532,6 +532,83 @@ Would you like me to elaborate on any specific aspect of change impact analysis?
 
 ## Command Line Usage
 
+### Querying Configurations
+The `mantis query` command supports two modes of operation: natural language queries and CUE query configurations.
+
+```bash
+# Using natural language queries
+mantis query \
+  -S <system-prompt-path> \
+  -C <code-dir> \
+  -q "your natural language query" \
+  -i <index-path>
+
+# Using CUE query configuration
+mantis query \
+  -S <system-prompt-path> \
+  -C <code-dir> \
+  -c <query-config-path>
+```
+
+Options:
+- `--system-prompt, -S`: Path to system prompt file (required)
+- `--code-dir, -C`: Directory containing CUE configurations (required)
+- `--query, -q`: Natural language query string
+- `--index, -i`: Path to the query index file (required with -q)
+- `--query-config, -c`: Path to CUE query configuration file
+
+Examples:
+```bash
+# Natural language query
+mantis query \
+  -S ./prompts/cquery.txt \
+  -C ./config \
+  -q "Show me all services with more than 3 replicas" \
+  -i ~/.mantis/index/mantis-index.json
+
+# Using query config file
+mantis query \
+  -S ./prompts/cquery.txt \
+  -C ./config \
+  -c ./queries/replicas.cue
+```
+
+### Query Configuration File
+When using the `-c` option, create a CUE file with your query:
+
+```cue
+// replicas.cue
+{
+    from: "service[string]"
+    select: [
+        "name",
+        "replicas"
+    ]
+    where: {
+        "replicas": "^[4-9]|[1-9][0-9]+$"  // Match 4 or more replicas
+    }
+}
+```
+
+### Natural Language Queries
+When using `-q`, the query will be converted to CUE format automatically. Examples:
+
+```bash
+# Count replicas
+mantis query -q "What is the total number of replicas across services"
+
+# Find specific services
+mantis query -q "Show me all frontend services"
+
+# Resource queries
+mantis query -q "Find services with high CPU limits"
+```
+
+The natural language query mode requires:
+1. A system prompt file (-S) that guides the AI
+2. An index file (-i) containing sample queries
+3. The code directory to search (-C)
+
 ### Building Query Index
 The `mantis index` command builds a search index for CUE files to optimize query performance and generate sample queries.
 
