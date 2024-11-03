@@ -1,12 +1,12 @@
 // FROM clause - specifies the data source path
-from: "service.web"
+from: "service.frontend"
 
 // SELECT clause - fields to project
 select: [
-    "name"    // Select all fields from the matched path
+    "*"    // Select all fields from the matched path
 ]
 
 // WHERE clause - predicate conditions
 where: {
-    // name: "web-*" 
+    dependencies: ["database"] 
 }

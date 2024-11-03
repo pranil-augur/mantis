@@ -1,4 +1,4 @@
-# Mantis Query Language
+# Configuration Query Language
 
 A declarative query language for CUE configurations that follows SQL-like semantics with path-based expressions.
 

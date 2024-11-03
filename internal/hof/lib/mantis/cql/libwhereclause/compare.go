@@ -1,7 +1,6 @@
 package libwhereclause
 
 import (
-	"fmt"
 	"regexp"
 
 	"cuelang.org/go/cue"
@@ -53,9 +52,6 @@ func compareEqual(value cue.Value, expected any) bool {
 		return true
 	}
 
-	// Print the type and value of expected for debugging
-	fmt.Printf("Type: %T, Value: %v\n", expected, expected)
-	fmt.Printf("Type: %T, Value: %v\n", value, value)
 	return false
 }
 
@@ -75,17 +71,35 @@ func compareRegex(value cue.Value, pattern any) bool {
 func compareIn(value cue.Value, list any) bool {
 	// If list is a cue.Value, handle it as a CUE list
 	if listValue, ok := list.(cue.Value); ok {
-		iter, err := listValue.List()
+		// Get the target list we're looking for
+		targetList, err := listValue.List()
 		if err != nil {
 			return false
 		}
-		// Check if value matches any element in the list
-		for iter.Next() {
-			if value.Equals(iter.Value()) {
-				return true
+
+		// Get the value as a list since it's also a list
+		_, err = value.List()
+		if err != nil {
+			// If value isn't a list, try comparing as a single value
+			for targetList.Next() {
+				if value.Equals(targetList.Value()) {
+					return true
+				}
+			}
+			return false
+		}
+
+		// For each item in the target list
+		for targetList.Next() {
+			targetItem := targetList.Value()
+			// Check if this item exists in the value list
+			tempValueList, _ := value.List()
+			for tempValueList.Next() {
+				if targetItem.Equals(tempValueList.Value()) {
+					return true
+				}
 			}
 		}
-		return false
 	}
 	return false
 }
