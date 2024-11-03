@@ -1,17 +1,21 @@
 # Configuration Query Language
 
+## Feature Status: Prototype
+
 A declarative query language for CUE configurations that follows SQL-like semantics with path-based expressions.
 
 ## Query Structure 
 
 ```cue
-query: {
+{
     // FROM clause - specifies the data source path
     from: string
-    // SELECT clause - what to retrieve
+    // SELECT clause - what fields to retrieve
     select: [...string]
     // WHERE clause - predicates for filtering
-    where: [string]: string
+    where: {
+        [string]: _    // Key-value pairs for filtering
+    }
 }
 ```
 
@@ -21,9 +25,9 @@ query: {
 ```cue
 from: "service"
 select: [
-    "*",                  // Select entire service struct
-    "web",               // Select specific service
-    "web.port"          // Select specific field
+    "_file",              // Select source file (system field)
+    "name",              // Select service name
+    "dependencies"       // Select dependencies
 ]
 ```
 
@@ -31,10 +35,13 @@ select: [
 ```cue
 from: "service[string]"    // Select all service entries
 select: [
-    "name",               // Select all service names
-    "env",                // Select all service environments
-    "port"                // Select all ports
+    "_file",              // Include source file
+    "name",              // Select all service names
+    "dependencies"       // Select all dependencies
 ]
+where: {
+    dependencies: ["cache"]  // Filter by dependency
+}
 ```
 
 Pattern Types:
@@ -269,64 +276,7 @@ where: {
     "metadata.labels.app": "frontend"
     "metadata.labels.team": "platform"
 }
-```
 
-### Change History
-Track configuration changes:
-```cue
-from: "service[string]"
-select: [
-    "history"
-]
-where: {
-    "history.timestamp": "^2024-03.*"
-    "history.type": "ConfigChange"
-}
-```
-
-### Example Extended Configuration
-To support these operational queries, your CUE configuration should include operational metadata:
-
-```cue
-package services
-
-service: {
-    web: {
-        name: "web-frontend"
-        image: {
-            repository: "nginx"
-            tag: "1.19.0"
-            vulnerabilities: []
-        }
-        resources: {
-            requests: {
-                cpu: "500m"
-                memory: "512Mi"
-            }
-            limits: {
-                cpu: "1000m"
-                memory: "1Gi"
-            }
-        }
-        topology: {
-            zone: "us-east-1a"
-            node: "node-1"
-            replicas: 3
-        }
-        metadata: {
-            labels: {
-                app: "frontend"
-                team: "platform"
-            }
-        }
-        history: [{
-            timestamp: "2024-03-14T12:00:00Z"
-            type: "ConfigChange"
-            change: "Updated resource limits"
-        }]
-    }
-}
-```
 
 ### Common Operational Questions Answered
 - Are any vulnerable container images running across clusters?

@@ -98,6 +98,11 @@ func QueryConfigurations(directory string, config types.QueryConfig) (types.Quer
 		Matches: make(map[string][]types.Match),
 	}
 
+	// Create a single accumulator for all matches
+	accumulatedMatch := types.Match{
+		Fields: make(map[string]interface{}),
+	}
+
 	files, err := getCueFiles(directory)
 	if err != nil {
 		return result, err
@@ -134,7 +139,31 @@ func QueryConfigurations(directory string, config types.QueryConfig) (types.Quer
 							continue
 						}
 					}
-					selectClause.ProcessClause(match.CueValue, config.Select, file, &result)
+
+					// Store the file path with underscore prefix
+					accumulatedMatch.Fields["_file"] = file
+
+					// Accumulate fields into the single match
+					for _, proj := range config.Select {
+						if proj == "_file" {
+							continue // Skip as we've already handled it
+						}
+						if val := match.CueValue.LookupPath(cue.ParsePath(proj)); val.Exists() {
+							var decoded interface{}
+							if err := val.Decode(&decoded); err == nil {
+								// For arrays/slices, append to existing values
+								if existing, ok := accumulatedMatch.Fields[proj]; ok {
+									if existingSlice, ok := existing.([]interface{}); ok {
+										if newSlice, ok := decoded.([]interface{}); ok {
+											accumulatedMatch.Fields[proj] = append(existingSlice, newSlice...)
+											continue
+										}
+									}
+								}
+								accumulatedMatch.Fields[proj] = decoded
+							}
+						}
+					}
 				}
 			} else {
 				// Handle direct path FROM
@@ -151,9 +180,31 @@ func QueryConfigurations(directory string, config types.QueryConfig) (types.Quer
 						continue
 					}
 				}
-				selectClause.ProcessClause(baseValue, config.Select, file, &result)
+				// Accumulate fields into the single match
+				for _, proj := range config.Select {
+					if val := baseValue.LookupPath(cue.ParsePath(proj)); val.Exists() {
+						var decoded interface{}
+						if err := val.Decode(&decoded); err == nil {
+							// For arrays/slices, append to existing values
+							if existing, ok := accumulatedMatch.Fields[proj]; ok {
+								if existingSlice, ok := existing.([]interface{}); ok {
+									if newSlice, ok := decoded.([]interface{}); ok {
+										accumulatedMatch.Fields[proj] = append(existingSlice, newSlice...)
+										continue
+									}
+								}
+							}
+							accumulatedMatch.Fields[proj] = decoded
+						}
+					}
+				}
 			}
 		}
+	}
+
+	// Add the accumulated match to the result only once
+	if len(accumulatedMatch.Fields) > 0 {
+		result.Matches["accumulated"] = []types.Match{accumulatedMatch}
 	}
 
 	return result, nil

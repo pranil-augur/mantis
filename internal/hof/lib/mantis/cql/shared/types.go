@@ -8,7 +8,8 @@ type Match struct {
 	Path     string
 	File     string
 	Type     string
-	Children []Match
+	Children []*Match               // For hierarchical CUE structure
+	Fields   map[string]interface{} // For additional metadata/processed data
 }
 
 type QueryResult struct {

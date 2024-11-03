@@ -120,25 +120,25 @@ var queryCmd = &cobra.Command{
 1. Natural language query with an index file (-q "find services exposed to internet" -i index.json)
 2. Direct query configuration file (-c query.cue)`,
 	Run: func(cmd *cobra.Command, args []string) {
-		systemPromptPath, _ := cmd.Flags().GetString("system-prompt")
 		codeDir, _ := cmd.Flags().GetString("code-dir")
 		queryString, _ := cmd.Flags().GetString("query")
 		queryConfigPath, _ := cmd.Flags().GetString("query-config")
 		indexPath, _ := cmd.Flags().GetString("index")
 
+		var systemPromptPath string
 		if queryString != "" {
+			systemPromptPath, _ = cmd.Flags().GetString("system-prompt")
+			if systemPromptPath == "" {
+				fmt.Fprintf(os.Stderr, "Error: --system-prompt is required for natural language queries\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
 			if indexPath == "" {
 				fmt.Fprintf(os.Stderr, "Error: --index is required when using natural language query\n")
 				cmd.Usage()
 				os.Exit(1)
 			}
-		} else if queryConfigPath != "" {
-			if indexPath != "" {
-				fmt.Fprintf(os.Stderr, "Error: --index should only be used with natural language queries\n")
-				cmd.Usage()
-				os.Exit(1)
-			}
-		} else {
+		} else if queryConfigPath == "" {
 			fmt.Fprintf(os.Stderr, "Error: either --query or --query-config is required\n")
 			cmd.Usage()
 			os.Exit(1)

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"cuelang.org/go/cue/cuecontext"
@@ -37,9 +38,13 @@ func NewQuery(confPath, systemPromptPath, codeDir, userPrompt, queryConfigPath, 
 		return nil, fmt.Errorf("failed initializing Query: %w", err)
 	}
 
-	systemPrompt, err := loadPromptFromPath(systemPromptPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load system prompt: %w", err)
+	var systemPrompt string
+	// Only load system prompt if we're doing natural language query
+	if userPrompt != "" {
+		systemPrompt, err = loadPromptFromPath(systemPromptPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load system prompt: %w", err)
+		}
 	}
 
 	return &Query{
@@ -78,7 +83,7 @@ func (q *Query) Run() error {
 		queryConfig = &config
 	}
 
-	fmt.Printf("=== Query Config ===\n%v\n==================\n", *queryConfig)
+	fmt.Print(formatQueryConfig(queryConfig))
 
 	results, err := cql.QueryConfigurations(q.CodeDir, *queryConfig)
 	if err != nil {
@@ -147,8 +152,6 @@ Please select and adapt the most relevant query to match the user's intent.`,
 		return nil, fmt.Errorf("failed to convert query to JSON: %w", err)
 	}
 
-	fmt.Printf("=== JSON Output ===\n%s\n=================\n", string(jsonBytes))
-
 	var queryConfig types.QueryConfig
 	if err := json.Unmarshal(jsonBytes, &queryConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse query config: %w", err)
@@ -164,11 +167,47 @@ func (q *Query) validate() error {
 	if q.UserPrompt == "" && q.QueryConfigPath == "" {
 		return fmt.Errorf("either user prompt or query config path is required")
 	}
-	if q.UserPrompt != "" && q.IndexPath == "" {
-		return fmt.Errorf("index path is required when using natural language query")
+	// Only validate system prompt and index for natural language queries
+	if q.UserPrompt != "" {
+		if q.SystemPrompt == "" {
+			return fmt.Errorf("system prompt is required when using natural language query")
+		}
+		if q.IndexPath == "" {
+			return fmt.Errorf("index path is required when using natural language query")
+		}
 	}
 	if _, err := os.Stat(q.CodeDir); err != nil {
 		return fmt.Errorf("invalid code directory: %w", err)
 	}
 	return nil
+}
+
+func formatQueryConfig(config *types.QueryConfig) string {
+	var output strings.Builder
+
+	output.WriteString("=== Configuration Query ===\n")
+
+	// FROM clause
+	output.WriteString("FROM: ")
+	output.WriteString(config.From)
+	output.WriteString("\n")
+
+	// SELECT clause
+	output.WriteString("SELECT: ")
+	output.WriteString(strings.Join(config.Select, ", "))
+	output.WriteString("\n")
+
+	// WHERE clause
+	if len(config.Where) > 0 {
+		output.WriteString("WHERE: ")
+		conditions := make([]string, 0)
+		for k, v := range config.Where {
+			conditions = append(conditions, fmt.Sprintf("%s = %v", k, v))
+		}
+		output.WriteString(strings.Join(conditions, " AND "))
+		output.WriteString("\n")
+	}
+
+	output.WriteString("==================\n")
+	return output.String()
 }

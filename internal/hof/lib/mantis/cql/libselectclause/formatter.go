@@ -2,7 +2,6 @@ package libselectclause
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	types "github.com/opentofu/opentofu/internal/hof/lib/mantis/cql/shared"
@@ -37,17 +36,9 @@ func FormatResults(result types.QueryResult, config types.QueryConfig) string {
 
 // FormatMatchAsTable formats a single match as a table row
 func FormatMatchAsTable(output *strings.Builder, match types.Match, fields []string) {
-	// Print file name first (showing just the base name for cleaner output)
-	fmt.Fprintf(output, "%-30s", filepath.Base(match.File))
-
-	// Print all requested fields
-	values := make([]string, len(fields))
-	for i, field := range fields {
+	// Print only the requested fields
+	for _, field := range fields {
 		value := findFieldValue(match, field)
-		values[i] = value
-	}
-
-	for _, value := range values {
 		fmt.Fprintf(output, "%-20s", value)
 	}
 	output.WriteString("\n")
@@ -76,7 +67,7 @@ func determineDisplayFields(result types.QueryResult, selects []string) []string
 }
 
 func printHeader(output *strings.Builder, fields []string) {
-	fmt.Fprintf(output, "%-30s", "file")
+	// Print only the field names from SELECT
 	for _, h := range fields {
 		fmt.Fprintf(output, "%-20s", h)
 	}
@@ -84,7 +75,7 @@ func printHeader(output *strings.Builder, fields []string) {
 }
 
 func printSeparator(output *strings.Builder, fields []string) {
-	output.WriteString(strings.Repeat("-", 30))
+	// Print separator only for selected fields
 	for range fields {
 		output.WriteString(strings.Repeat("-", 20))
 	}
@@ -92,7 +83,17 @@ func printSeparator(output *strings.Builder, fields []string) {
 }
 
 func findFieldValue(match types.Match, field string) string {
-	// Handle wildcard selector
+	// First check Fields map
+	if val, ok := match.Fields[field]; ok {
+		switch v := val.(type) {
+		case []interface{}:
+			return fmt.Sprintf("%v", v)
+		default:
+			return fmt.Sprintf("%v", v)
+		}
+	}
+
+	// Then check other fields
 	if field == "*" {
 		return match.Value
 	}

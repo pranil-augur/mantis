@@ -64,7 +64,7 @@ func ExtractMatch(value cue.Value, path string, file string) *types.Match {
 
 			// Process children recursively
 			if childMatch := ExtractMatch(iter.Value(), iter.Label(), file); childMatch != nil {
-				match.Children = append(match.Children, *childMatch)
+				match.Children = append(match.Children, childMatch)
 			}
 		}
 		match.Value = sb.String()
@@ -84,7 +84,7 @@ func ExtractMatch(value cue.Value, path string, file string) *types.Match {
 }
 
 // FindFieldValue finds a field value in a Match object
-func FindFieldValue(match types.Match, field string) string {
+func FindFieldValue(match *types.Match, field string) string {
 	// Handle wildcard selector
 	if field == "*" {
 		return match.Value
