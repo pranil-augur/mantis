@@ -118,6 +118,101 @@ var validateCmd = &cobra.Command{
 	},
 }
 
+var queryCmd = &cobra.Command{
+	Use:   "query",
+	Short: "Query CUE files using natural language or query config",
+	Long: `Execute a query against CUE files using either:
+1. Natural language query with an index file (-q "find services exposed to internet" -i index.json)
+2. Direct query configuration file (-c query.cue)`,
+	Run: func(cmd *cobra.Command, args []string) {
+		codeDir, _ := cmd.Flags().GetString("code-dir")
+		queryString, _ := cmd.Flags().GetString("query")
+		queryConfigPath, _ := cmd.Flags().GetString("query-config")
+		indexPath, _ := cmd.Flags().GetString("index")
+
+		var systemPromptPath string
+		if queryString != "" {
+			systemPromptPath, _ = cmd.Flags().GetString("system-prompt")
+			if systemPromptPath == "" {
+				fmt.Fprintf(os.Stderr, "Error: --system-prompt is required for natural language queries\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
+			if indexPath == "" {
+				fmt.Fprintf(os.Stderr, "Error: --index is required when using natural language query\n")
+				cmd.Usage()
+				os.Exit(1)
+			}
+		} else if queryConfigPath == "" {
+			fmt.Fprintf(os.Stderr, "Error: either --query or --query-config is required\n")
+			cmd.Usage()
+			os.Exit(1)
+		}
+
+		configPath := filepath.Join(os.Getenv("HOME"), ".mantis", "config.cue")
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			configPath = ""
+		}
+
+		query, err := runner.NewQuery(configPath, systemPromptPath, codeDir, queryString, queryConfigPath, indexPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing query: %v\n", err)
+			os.Exit(1)
+		}
+
+		if err := query.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "Query error: %v\n", err)
+			os.Exit(1)
+		}
+	},
+}
+
+var indexCmd = &cobra.Command{
+	Use:   "index",
+	Short: "Build a search index for CUE files",
+	Long:  `Build a search index for CUE files in the specified directory to optimize query performance.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		systemPromptPath, _ := cmd.Flags().GetString("system-prompt")
+		codeDir, _ := cmd.Flags().GetString("code-dir")
+		indexDir, _ := cmd.Flags().GetString("index-dir")
+
+		if codeDir == "" {
+			fmt.Fprintf(os.Stderr, "Error: code directory is required\n")
+			cmd.Usage()
+			os.Exit(1)
+		}
+		if indexDir == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting home directory: %v\n", err)
+				os.Exit(1)
+			}
+			indexDir = filepath.Join(home, ".mantis", "index")
+		}
+
+		configPath := filepath.Join(os.Getenv("HOME"), ".mantis", "config.cue")
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			configPath = ""
+		}
+		// Create cache directory if it doesn't exist
+		if err := os.MkdirAll(indexDir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating index directory: %v\n", err)
+			os.Exit(1)
+		}
+
+		indexer, err := runner.NewIndex(configPath, systemPromptPath, codeDir, indexDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing AI generator: %v\n", err)
+			os.Exit(1)
+		}
+
+		if err := indexer.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error building index: %v\n", err)
+			os.Exit(1)
+		}
+	},
+}
+
 func init() {
 	// Initialize flags using the function from root.go
 	// flags.SetupRootPflags(rootCmd.PersistentFlags(), &rflags)
@@ -135,11 +230,21 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(genCmd)
 	rootCmd.AddCommand(codegenCmd)
-
-	// Add the --code-dir flag to validateCmd
-	validateCmd.Flags().StringVarP(&rflags.CodeDir, "code-dir", "C", "", "Directory to validate")
-
 	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(queryCmd)
+	rootCmd.AddCommand(indexCmd)
+
+	validateCmd.Flags().StringP("code-dir", "C", "", "Directory to query")
+	// Add the --code-dir flag to queryCmd
+	queryCmd.Flags().StringP("code-dir", "C", "", "Directory to query")
+	queryCmd.Flags().StringP("query", "q", "", "Natural language query string")
+	queryCmd.Flags().StringP("query-config", "c", "", "Path to query configuration file")
+	queryCmd.Flags().StringP("system-prompt", "S", "", "Path to system prompt file")
+	queryCmd.Flags().StringP("index", "i", "", "Path to index file for natural language queries")
+
+	indexCmd.Flags().StringP("code-dir", "C", "", "Directory to index")
+	indexCmd.Flags().StringP("system-prompt", "S", "", "Path to system prompt file")
+	indexCmd.Flags().StringP("index-dir", "i", "", "Index cache directory (defaults to ~/.mantis/cache)")
 }
 
 func main() {
