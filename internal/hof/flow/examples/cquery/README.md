@@ -442,6 +442,82 @@ where: {
 }
 ```
 
+
+### Configuration Drift Detection
+
+Configuration drift can occur when the actual configuration of resources deviates from the desired state. Using the Configuration Query Language, you can detect and address drift efficiently:
+
+#### Identify Drift Across Environments
+Run targeted queries on configurations in both staging and production to compare critical settings:
+
+```cue
+from: "service[string]"
+select: [
+    "name",
+    "replicas",
+    "env"
+]
+where: {
+    "replicas": "3"   // Expected replica count
+}
+```
+Run this query on both configurations to check for differences in replicas, environment variables, or other key settings.
+
+#### Drift Detection Automation
+Set up automated queries within CI/CD workflows to detect configuration drift:
+
+```cue
+from: "resource[string]"
+select: [
+    "name",
+    "settings"
+]
+where: {
+    "settings.deployment.region": "us-east-1"  // Match expected region
+}
+```
+This query validates that resources remain in the intended region, detecting any unintentional drifts.
+
+### Resource Import/Export
+
+The Configuration Query Language facilitates the import and export of resource objects, allowing you to capture resource definitions from one environment and reapply them in another.
+
+#### Exporting Resource Configurations
+Use targeted queries to export specific resource configurations:
+
+```cue
+from: "resource[string]"
+select: [
+    "name",
+    "type",
+    "settings",
+    "dependencies"
+]
+```
+The query output can be saved in JSON or YAML, creating a versioned snapshot of the resource for:
+- Reuse
+- Documentation
+- Backup
+
+#### Importing Resource Configurations
+1. Define a schema in CUE for importing configurations, ensuring compatibility with Mantis standards
+2. Apply the exported configuration data to new or existing environments using `mantis apply`
+3. Use for:
+   - Cloning environments
+   - Sharing configurations
+   - Recovering from backups
+
+#### Version Control and Synchronization
+- Store exported configurations in Git to maintain a versioned history
+- Enable rollback, cloning, or restoration of configurations
+- Integrate with Mantis CI/CD pipelines to apply updated configurations
+- Ensure environments stay synchronized with the exported state
+
+These import/export capabilities enhance flexibility by allowing resources to be easily:
+- Managed
+- Replicated
+- Shared across different environments
+
 ### Benefits for Change Management
 1. **Dependency Visualization**
    - Track direct and indirect dependencies
