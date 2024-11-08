@@ -63,7 +63,7 @@ brews:
       email: pranil.dasika@getaugur.ai
   commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
   repository:
-      owner: pranil-augur
+      owner: augur-ai
 
       name: homebrew-mantis
 
@@ -82,7 +82,7 @@ brews:
             # The Git URL to push.
             #
             # Templates: allowed.
-            url: 'git@github.com:pranil-augur/homebrew-mantis.git'
+            url: 'git@github.com:augur-ai/homebrew-mantis.git'
 
             # The SSH private key that should be used to commit to the Git
             # repository.
