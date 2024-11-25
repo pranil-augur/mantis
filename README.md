@@ -8,6 +8,9 @@
 
 Mantis is a next-generation Infrastructure as Code (IaC) tool that reimagines how we manage cloud and Kubernetes resources. Built as a fork of OpenTofu and powered by CUE, Mantis combines the best of Terraform and Helm while solving their limitations.
 
+To manage cloud resources, Mantis compiles CUE configurations into Terraform compatible json and leverages the Opentofu engine to orchestrate it.
+To manage K8s resources, Mantis compiles CUE configurations yaml manifests which can be deployed either using mantis or via integrations with Gitops tools like ArgoCD or FluxCD
+
 ### **Key Features**
 
 * **Unified Configuration**: Single tool to replace both Terraform and Helm workflows  
@@ -191,6 +194,7 @@ spec: {
 ### **Core Concepts**
 
 * [Tasks](https://getmantis.ai/docs/key_concepts/flows/tasks) & [flows](https://getmantis.ai/docs/key_concepts/flows/flow_overview)
+* [Configuration Query Language](https://getmantis.ai/docs/key_concepts/cql/cql_overview)
 
 ### **Guides**
 
